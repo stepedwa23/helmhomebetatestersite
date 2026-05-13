@@ -71,9 +71,11 @@ Deno.serve(async (req) => {
     )
     if (inviteErr) {
       // If the email was already used to create an auth user, the invite call
-      // will fail. Surface that as a 409 so the admin knows.
+      // will fail. Surface that as a 409 so the admin knows. Supabase phrases
+      // this a few different ways ("already registered" / "already been
+      // registered" / "already exists"), so match loosely.
       const msg = inviteErr.message || 'invite failed'
-      const status = /already (registered|exists)/i.test(msg) ? 409 : 500
+      const status = /already\b.*\b(registered|exists)/i.test(msg) ? 409 : 500
       return json({ error: msg }, status)
     }
 

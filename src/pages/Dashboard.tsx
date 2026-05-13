@@ -1,14 +1,33 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, Bug, Lightbulb, BookOpen, Download as DownloadIcon } from 'lucide-react'
-import { format } from 'date-fns'
+import {
+  Calendar,
+  Bug,
+  Lightbulb,
+  BookOpen,
+  Download as DownloadIcon,
+  Users,
+  ArrowRight,
+} from 'lucide-react'
+import { format, formatDistanceToNow } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
-import PagePlaceholder from '../components/PagePlaceholder'
 import LoadingSpinner from '../components/LoadingSpinner'
 import PreviewModeBanner from '../components/PreviewModeBanner'
 import TipTapView from '../components/editor/TipTapView'
+import {
+  BugSeverityBadge,
+  BugStatusBadge,
+  SuggestionStatusBadge,
+  CycleStatusBadge,
+} from '../components/StatusBadge'
 import { getCurrentVersion } from '../lib/appVersions'
 import { listDownloads, getDownloadUrl } from '../lib/appDownloads'
+import { listTesters } from '../lib/testers'
+import { listBugsWithTester } from '../lib/bugs'
+import type { BugReportWithTester } from '../lib/bugs'
+import { listSuggestionsAdminWithTester } from '../lib/suggestions'
+import type { SuggestionWithTester } from '../lib/suggestions'
+import { listCycles } from '../lib/cycles'
 import {
   ACTIVE_PLATFORMS,
   APP_PLATFORM_LABEL,
@@ -16,26 +35,542 @@ import {
   type AppPlatform,
   type AppVersion,
   type Tester,
+  type TestCycle,
+  type BugSeverity,
 } from '../types'
 
 export default function Dashboard() {
   const { effectiveIsAdmin, tester, project, rolesLoading } = useAuth()
 
   if (effectiveIsAdmin) {
+    return <AdminDashboard projectId={project?.id ?? null} rolesLoading={rolesLoading} />
+  }
+
+  return (
+    <TesterDashboard
+      tester={tester}
+      projectId={project?.id ?? null}
+      rolesLoading={rolesLoading}
+    />
+  )
+}
+
+// =====================================================================
+// Admin Dashboard
+// =====================================================================
+
+interface AdminDashboardProps {
+  projectId: string | null
+  rolesLoading: boolean
+}
+
+function AdminDashboard({ projectId, rolesLoading }: AdminDashboardProps) {
+  const [testers, setTesters] = useState<Tester[] | null>(null)
+  const [bugs, setBugs] = useState<BugReportWithTester[] | null>(null)
+  const [suggestions, setSuggestions] = useState<SuggestionWithTester[] | null>(null)
+  const [cycles, setCycles] = useState<TestCycle[] | null>(null)
+  const [version, setVersion] = useState<AppVersion | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const refresh = useCallback(async () => {
+    if (!projectId) return
+    setError(null)
+    try {
+      const [t, b, s, c, v] = await Promise.all([
+        listTesters(projectId),
+        listBugsWithTester(projectId),
+        listSuggestionsAdminWithTester(projectId),
+        listCycles(projectId),
+        getCurrentVersion(projectId),
+      ])
+      setTesters(t)
+      setBugs(b)
+      setSuggestions(s)
+      setCycles(c)
+      setVersion(v)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard data')
+    }
+  }, [projectId])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  // ---------- Derived counts ----------
+  const counts = useMemo(() => {
+    if (!testers || !bugs || !suggestions || !cycles) return null
+
+    const activeTesters = testers.filter((t) => t.status === 'active').length
+    const invitedTesters = testers.filter((t) => t.status === 'invited').length
+
+    const liveBugs = bugs.filter((b) => b.status === 'open' || b.status === 'in_progress')
+    const bugsBySeverity: Record<BugSeverity, number> = {
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0,
+    }
+    for (const b of liveBugs) bugsBySeverity[b.severity]++
+
+    const pendingSuggestions = suggestions.filter(
+      (s) => s.status === 'new' || s.status === 'under_review',
+    ).length
+
+    const activeCycle = cycles.find((c) => c.status === 'active') ?? null
+
+    return {
+      activeTesters,
+      invitedTesters,
+      totalTesters: testers.length,
+      liveBugsTotal: liveBugs.length,
+      bugsBySeverity,
+      pendingSuggestions,
+      totalSuggestions: suggestions.length,
+      activeCycle,
+    }
+  }, [testers, bugs, suggestions, cycles])
+
+  // ---------- Recent activity feed ----------
+  const recentActivity = useMemo(() => {
+    if (!bugs || !suggestions) return null
+    type Item =
+      | { kind: 'bug'; row: BugReportWithTester }
+      | { kind: 'suggestion'; row: SuggestionWithTester }
+    const items: Item[] = [
+      ...bugs.map((row) => ({ kind: 'bug' as const, row })),
+      ...suggestions.map((row) => ({ kind: 'suggestion' as const, row })),
+    ]
+    items.sort(
+      (a, b) =>
+        new Date(b.row.submitted_at).getTime() - new Date(a.row.submitted_at).getTime(),
+    )
+    return items.slice(0, 10)
+  }, [bugs, suggestions])
+
+  // ---------- Render ----------
+  if (rolesLoading || !projectId) {
     return (
-      <PagePlaceholder
-        title="Admin dashboard"
-        description="Open bug counts, active test cycles, recent submissions."
-      />
+      <div className="p-6 md:p-8 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
     )
   }
 
-  // Tester dashboard — current beta version + patch notes + quick links.
-  // This branch also runs when the admin is in preview mode (effectiveIsAdmin=false).
-  return <TesterDashboard tester={tester} projectId={project?.id ?? null} rolesLoading={rolesLoading} />
+  const loading = !counts || !recentActivity
+
+  // First-time empty state: no testers, no bugs, no suggestions, no cycles.
+  const isEmpty =
+    !!counts &&
+    counts.totalTesters === 0 &&
+    bugs?.length === 0 &&
+    suggestions?.length === 0 &&
+    cycles?.length === 0
+
+  return (
+    <div className="p-6 md:p-8 max-w-6xl mx-auto">
+      <header className="mb-6">
+        <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          What needs your attention today.
+        </p>
+      </header>
+
+      {error && (
+        <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="bg-white border border-gray-200 rounded-xl p-10 flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
+      ) : isEmpty ? (
+        <GettingStartedEmptyState />
+      ) : (
+        <div className="space-y-6">
+          <StatCardGrid counts={counts!} />
+          {counts!.activeCycle && (
+            <ActiveCycleCard
+              cycle={counts!.activeCycle}
+              bugs={bugs ?? []}
+              testerCount={counts!.totalTesters}
+            />
+          )}
+          {version && <CurrentVersionCard version={version} />}
+          <RecentActivityList items={recentActivity!} />
+        </div>
+      )}
+    </div>
+  )
 }
 
-// ---------- Tester dashboard ----------
+// ---------- Empty state ----------
+
+function GettingStartedEmptyState() {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-8">
+      <h2 className="text-lg font-semibold text-gray-900">Getting started</h2>
+      <p className="mt-1 text-sm text-gray-500">
+        You haven't set anything up yet. The fastest path:
+      </p>
+      <ol className="mt-4 space-y-3 text-sm text-gray-700">
+        <li className="flex items-start gap-3">
+          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold">
+            1
+          </span>
+          <span>
+            <Link to="/admin/testers" className="text-blue-600 hover:underline font-medium">
+              Add your first tester
+            </Link>{' '}
+            and send them an invite email.
+          </span>
+        </li>
+        <li className="flex items-start gap-3">
+          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold">
+            2
+          </span>
+          <span>
+            <Link to="/admin/patch-notes" className="text-blue-600 hover:underline font-medium">
+              Publish a beta version
+            </Link>{' '}
+            with patch notes and per-platform installer downloads.
+          </span>
+        </li>
+        <li className="flex items-start gap-3">
+          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold">
+            3
+          </span>
+          <span>
+            <Link to="/admin/cycles" className="text-blue-600 hover:underline font-medium">
+              Create a test cycle
+            </Link>{' '}
+            and assign your testers to it — gives bugs and feedback a context to live in.
+          </span>
+        </li>
+      </ol>
+    </div>
+  )
+}
+
+// ---------- Stat cards ----------
+
+interface DashboardCounts {
+  activeTesters: number
+  invitedTesters: number
+  totalTesters: number
+  liveBugsTotal: number
+  bugsBySeverity: Record<BugSeverity, number>
+  pendingSuggestions: number
+  totalSuggestions: number
+  activeCycle: TestCycle | null
+}
+
+interface StatCardGridProps {
+  counts: DashboardCounts
+}
+
+function StatCardGrid({ counts }: StatCardGridProps) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <StatCard
+        icon={Users}
+        label="Active testers"
+        value={counts.activeTesters}
+        sublabel={
+          counts.invitedTesters > 0
+            ? `${counts.invitedTesters} invited (not yet active)`
+            : counts.totalTesters > counts.activeTesters
+              ? `${counts.totalTesters - counts.activeTesters} inactive`
+              : "everyone's active"
+        }
+        to="/admin/testers"
+        tone="blue"
+      />
+
+      <StatCard
+        icon={Bug}
+        label="Open bugs"
+        value={counts.liveBugsTotal}
+        sublabel={
+          counts.bugsBySeverity.critical > 0
+            ? `${counts.bugsBySeverity.critical} critical, ${counts.bugsBySeverity.high} high`
+            : counts.bugsBySeverity.high > 0
+              ? `${counts.bugsBySeverity.high} high severity`
+              : counts.liveBugsTotal > 0
+                ? 'nothing critical'
+                : 'no open bugs'
+        }
+        to="/admin/bugs"
+        tone={counts.bugsBySeverity.critical > 0 ? 'red' : 'green'}
+      />
+
+      <StatCard
+        icon={Lightbulb}
+        label="Pending suggestions"
+        value={counts.pendingSuggestions}
+        sublabel={
+          counts.totalSuggestions > 0
+            ? `${counts.totalSuggestions} total submitted`
+            : 'none yet'
+        }
+        to="/admin/suggestions"
+        tone="amber"
+      />
+
+      <StatCard
+        icon={Calendar}
+        label="Active cycle"
+        value={counts.activeCycle ? 1 : 0}
+        sublabel={counts.activeCycle ? counts.activeCycle.name : 'none in progress'}
+        to="/admin/cycles"
+        tone="purple"
+      />
+    </div>
+  )
+}
+
+type StatTone = 'blue' | 'green' | 'red' | 'amber' | 'purple'
+
+const TONE_BG: Record<StatTone, string> = {
+  blue: 'bg-blue-50 text-blue-700',
+  green: 'bg-green-50 text-green-700',
+  red: 'bg-red-50 text-red-700',
+  amber: 'bg-amber-50 text-amber-700',
+  purple: 'bg-purple-50 text-purple-700',
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  sublabel,
+  to,
+  tone,
+}: {
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
+  label: string
+  value: number
+  sublabel: string
+  to: string
+  tone: StatTone
+}) {
+  return (
+    <Link
+      to={to}
+      className="bg-white border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-sm transition-all block"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {label}
+        </div>
+        <div className={`p-1.5 rounded-lg ${TONE_BG[tone]}`}>
+          <Icon className="w-3.5 h-3.5" />
+        </div>
+      </div>
+      <div className="mt-2 text-2xl font-semibold text-gray-900">{value}</div>
+      <div className="mt-0.5 text-xs text-gray-500 truncate">{sublabel}</div>
+    </Link>
+  )
+}
+
+// ---------- Active cycle card ----------
+
+function ActiveCycleCard({
+  cycle,
+  bugs,
+  testerCount,
+}: {
+  cycle: TestCycle
+  bugs: BugReportWithTester[]
+  testerCount: number
+}) {
+  const cycleBugs = bugs.filter((b) => b.cycle_id === cycle.id)
+  const openInCycle = cycleBugs.filter(
+    (b) => b.status === 'open' || b.status === 'in_progress',
+  ).length
+
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl p-5">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Active test cycle
+          </div>
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
+            <h2 className="text-lg font-semibold text-gray-900">{cycle.name}</h2>
+            <CycleStatusBadge status={cycle.status} />
+          </div>
+          <div className="mt-1 text-xs text-gray-500">
+            {cycle.build_version && `Build ${cycle.build_version} · `}
+            {formatDateRange(cycle.start_date, cycle.end_date)}
+          </div>
+        </div>
+        <Link
+          to="/admin/cycles"
+          className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap"
+        >
+          Manage cycles →
+        </Link>
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+        <CycleMetric label="Testers in project" value={testerCount} />
+        <CycleMetric label="Bugs filed in cycle" value={cycleBugs.length} />
+        <CycleMetric label="Open in cycle" value={openInCycle} />
+      </div>
+
+      {cycle.notes && (
+        <p className="mt-3 text-xs text-gray-600 italic line-clamp-2">{cycle.notes}</p>
+      )}
+    </section>
+  )
+}
+
+function CycleMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className="text-base font-semibold text-gray-900">{value}</div>
+    </div>
+  )
+}
+
+function formatDateRange(start: string | null, end: string | null): string {
+  if (!start && !end) return 'no dates set'
+  const s = start ? format(new Date(start), 'MMM d, yyyy') : '?'
+  const e = end ? format(new Date(end), 'MMM d, yyyy') : '?'
+  return `${s} → ${e}`
+}
+
+// ---------- Current version card ----------
+
+function CurrentVersionCard({ version }: { version: AppVersion }) {
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl p-5">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Current beta
+          </div>
+          <div className="mt-1 flex items-center gap-3 flex-wrap">
+            <h2 className="text-lg font-semibold text-gray-900">{version.version}</h2>
+            {version.release_date && (
+              <span className="text-xs text-gray-500">
+                Released {format(new Date(version.release_date), 'MMM d, yyyy')}
+              </span>
+            )}
+          </div>
+        </div>
+        <Link
+          to="/admin/patch-notes"
+          className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap"
+        >
+          Manage patch notes →
+        </Link>
+      </div>
+    </section>
+  )
+}
+
+// ---------- Recent activity feed ----------
+
+type ActivityItem =
+  | { kind: 'bug'; row: BugReportWithTester }
+  | { kind: 'suggestion'; row: SuggestionWithTester }
+
+function RecentActivityList({ items }: { items: ActivityItem[] }) {
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl">
+      <header className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-900">Recent activity</h2>
+        <span className="text-xs text-gray-500">
+          {items.length === 0 ? 'nothing yet' : `last ${items.length}`}
+        </span>
+      </header>
+      {items.length === 0 ? (
+        <div className="px-5 py-8 text-center text-sm text-gray-500">
+          No submissions yet. Your testers' bug reports and suggestions appear here as they
+          come in.
+        </div>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {items.map((item) => (
+            <ActivityRow key={`${item.kind}-${item.row.id}`} item={item} />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function ActivityRow({ item }: { item: ActivityItem }) {
+  if (item.kind === 'bug') {
+    const b = item.row
+    return (
+      <li>
+        <Link
+          to={`/admin/bugs/${b.id}`}
+          className="block px-5 py-3 hover:bg-gray-50/60 transition-colors"
+        >
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div className="flex-shrink-0 mt-0.5 w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
+                <Bug className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-gray-900 truncate">{b.title}</span>
+                  <BugSeverityBadge severity={b.severity} />
+                  <BugStatusBadge status={b.status} />
+                </div>
+                <div className="mt-0.5 text-xs text-gray-500">
+                  {b.tester?.name ?? 'Unknown tester'} ·{' '}
+                  {formatDistanceToNow(new Date(b.submitted_at), { addSuffix: true })}
+                </div>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-gray-300 mt-1 flex-shrink-0" />
+          </div>
+        </Link>
+      </li>
+    )
+  }
+
+  const s = item.row
+  return (
+    <li>
+      <Link
+        to="/admin/suggestions"
+        className="block px-5 py-3 hover:bg-gray-50/60 transition-colors"
+      >
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            <div className="flex-shrink-0 mt-0.5 w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <Lightbulb className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-gray-900 truncate">{s.title}</span>
+                <SuggestionStatusBadge status={s.status} />
+              </div>
+              <div className="mt-0.5 text-xs text-gray-500">
+                {s.tester?.name ?? 'Unknown tester'} ·{' '}
+                {formatDistanceToNow(new Date(s.submitted_at), { addSuffix: true })}
+              </div>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-gray-300 mt-1 flex-shrink-0" />
+        </div>
+      </Link>
+    </li>
+  )
+}
+
+// =====================================================================
+// Tester Dashboard (existing)
+// =====================================================================
 
 interface TesterDashboardProps {
   tester: Tester | null
@@ -241,13 +776,10 @@ function DownloadButton({ platform, download, highlighted }: DownloadButtonProps
     setBusy(true)
     try {
       const url = await getDownloadUrl(download.storage_path, 300)
-      // Navigate to the signed URL; the `download: true` option on the signed
-      // URL forces a content-disposition that prompts a download in the browser.
       window.location.href = url
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Download failed')
     } finally {
-      // Leave the button "busy" for a moment so the user sees something happened.
       setTimeout(() => setBusy(false), 800)
     }
   }
@@ -288,23 +820,12 @@ function DownloadButton({ platform, download, highlighted }: DownloadButtonProps
   )
 }
 
-/**
- * Best-effort guess at the tester's platform. Prefers their tester profile's
- * `os` field (admin-known truth). Falls back to navigator.userAgent for finer
- * arch hints. Returns null if we genuinely can't tell.
- */
 function useDetectedPlatform(testerOs: Tester['os']): AppPlatform | null {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
-
   if (testerOs === 'macos' || /Macintosh|Mac OS X/.test(ua)) {
-    // navigator.userAgent doesn't reliably distinguish Apple Silicon from Intel
-    // (Safari hides this for fingerprinting reasons). We default to arm64
-    // since Stephen's tester pool is presumably mostly recent Macs and our
-    // ACTIVE_PLATFORMS doesn't include macos_x64.
     return 'macos_arm64'
   }
   if (testerOs === 'windows' || /Windows/.test(ua)) {
-    // ARM64 Windows uses "ARM64" in the user agent.
     if (/ARM64|aarch64/i.test(ua)) return 'windows_arm64'
     return 'windows_x64'
   }
