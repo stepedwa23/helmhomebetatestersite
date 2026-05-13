@@ -35,7 +35,13 @@ export default function Badge({ tone = 'gray', children, className = '' }: Badge
 
 // ---------- Status-specific helpers ----------
 
-import type { TesterStatus, BugSeverity, BugStatus, SuggestionStatus } from '../types'
+import type {
+  TesterStatus,
+  BugSeverity,
+  BugStatus,
+  SuggestionStatus,
+  CycleStatus,
+} from '../types'
 
 const TESTER_STATUS_TONE: Record<TesterStatus, BadgeTone> = {
   invited: 'amber',
@@ -104,4 +110,20 @@ const SUGGESTION_STATUS_LABEL: Record<SuggestionStatus, string> = {
 
 export function SuggestionStatusBadge({ status }: { status: SuggestionStatus }) {
   return <Badge tone={SUGGESTION_STATUS_TONE[status]}>{SUGGESTION_STATUS_LABEL[status]}</Badge>
+}
+
+const CYCLE_STATUS_TONE: Record<CycleStatus, BadgeTone> = {
+  planned: 'gray',
+  active: 'green',
+  completed: 'purple',
+}
+
+const CYCLE_STATUS_LABEL: Record<CycleStatus, string> = {
+  planned: 'Planned',
+  active: 'Active',
+  completed: 'Completed',
+}
+
+export function CycleStatusBadge({ status }: { status: CycleStatus }) {
+  return <Badge tone={CYCLE_STATUS_TONE[status]}>{CYCLE_STATUS_LABEL[status]}</Badge>
 }
