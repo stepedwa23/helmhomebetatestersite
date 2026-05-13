@@ -24,27 +24,6 @@ interface AuthContextValue {
   refresh: () => Promise<void>
 }
 
-const AUTH_LOAD_TIMEOUT_MS = 10_000
-
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`Auth load timed out after ${ms}ms`)),
-      ms,
-    )
-    p.then(
-      (v) => {
-        clearTimeout(timer)
-        resolve(v)
-      },
-      (e) => {
-        clearTimeout(timer)
-        reject(e)
-      },
-    )
-  })
-}
-
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -123,28 +102,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true
 
     // Initial load.
-    //   - Hard timeout so a hung Supabase call can't leave us on the spinner forever.
-    //   - On any failure (timeout, network, stale session), sign out automatically.
-    //     The user lands on /login cleanly instead of in a half-loaded state, and
-    //     localStorage gets reset without manual intervention.
+    // Errors are caught + logged so we get diagnostic signal in console, but
+    // we no longer impose a hard timeout — if a request genuinely hangs in
+    // production, we want to see that explicitly rather than masking it as
+    // a "timeout." The setLoading(false) in finally still fires whenever
+    // the awaits settle naturally.
     ;(async () => {
       try {
-        // Wrap EVERY supabase call in a timeout so no individual hang can
-        // pin the spinner. getSession is normally instant (reads localStorage)
-        // but in some environments it can stall — better safe than infinite.
-        const { data } = await withTimeout(supabase.auth.getSession(), AUTH_LOAD_TIMEOUT_MS)
+        const { data } = await supabase.auth.getSession()
         if (!mounted) return
         setSession(data.session)
-        await withTimeout(loadUserContext(data.session), AUTH_LOAD_TIMEOUT_MS)
+        await loadUserContext(data.session)
       } catch (err) {
-        console.error('AuthContext initial load failed — signing out to recover', err)
-        // signOut itself is also wrapped — if it hangs, we still fall through
-        // to the finally block and let the user reach /login.
-        try {
-          await withTimeout(supabase.auth.signOut(), 3_000)
-        } catch {
-          // best effort; clearing local state below is what actually unblocks the UI
-        }
+        console.error('[AuthContext] initial load failed', err)
         if (mounted) {
           setSession(null)
           setTester(null)
