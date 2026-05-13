@@ -104,16 +104,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     //     localStorage gets reset without manual intervention.
     ;(async () => {
       try {
-        const { data } = await supabase.auth.getSession()
+        // Wrap EVERY supabase call in a timeout so no individual hang can
+        // pin the spinner. getSession is normally instant (reads localStorage)
+        // but in some environments it can stall — better safe than infinite.
+        const { data } = await withTimeout(supabase.auth.getSession(), AUTH_LOAD_TIMEOUT_MS)
         if (!mounted) return
         setSession(data.session)
         await withTimeout(loadUserContext(data.session), AUTH_LOAD_TIMEOUT_MS)
       } catch (err) {
         console.error('AuthContext initial load failed — signing out to recover', err)
+        // signOut itself is also wrapped — if it hangs, we still fall through
+        // to the finally block and let the user reach /login.
         try {
-          await supabase.auth.signOut()
+          await withTimeout(supabase.auth.signOut(), 3_000)
         } catch {
-          // best effort; the page reload after redirect will reset state
+          // best effort; clearing local state below is what actually unblocks the UI
         }
         if (mounted) {
           setSession(null)
