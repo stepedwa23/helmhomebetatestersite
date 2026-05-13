@@ -56,6 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Load the user's project + tester profile (if any).
   // RLS scopes this to rows the user can actually see, so we don't need to filter.
+  //
+  // We surface query errors via console.error instead of swallowing them,
+  // because a silent RLS rejection (or stale-JWT 401) is otherwise impossible
+  // to diagnose — the user just appears as a tester with no clue why.
   async function loadUserContext(currentSession: Session | null) {
     if (!currentSession?.user) {
       setProject(null)
@@ -66,27 +70,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 1. Active project — admin owns it, testers see only theirs via RLS.
     // Avoid .maybeSingle()/.single() — use limit(1) + array index (reference-project lesson).
-    const { data: projectRows } = await supabase
+    const { data: projectRows, error: projectErr } = await supabase
       .from('projects')
       .select('*')
       .order('created_at', { ascending: true })
       .limit(1)
+
+    if (projectErr) {
+      console.error('[AuthContext] projects query failed', projectErr)
+    }
+    if (!projectRows?.length) {
+      console.warn('[AuthContext] No project rows visible to user', {
+        user_id: currentSession.user.id,
+        email: currentSession.user.email,
+      })
+    }
 
     const activeProject = (projectRows?.[0] as Project | undefined) ?? null
     setProject(activeProject)
 
     // 2. Admin if user owns the project.
     const userIsAdmin = !!activeProject && activeProject.owner_id === currentSession.user.id
+    console.info('[AuthContext] role check', {
+      user_id: currentSession.user.id,
+      email: currentSession.user.email,
+      project_id: activeProject?.id,
+      project_owner_id: activeProject?.owner_id,
+      is_admin: userIsAdmin,
+    })
     setIsAdmin(userIsAdmin)
 
     // 3. Tester record for this user (only if not admin — admins typically aren't testers).
     if (!userIsAdmin) {
-      const { data: testerRows } = await supabase
+      const { data: testerRows, error: testerErr } = await supabase
         .from('testers')
         .select('*')
         .eq('user_id', currentSession.user.id)
         .order('created_at', { ascending: false })
         .limit(1)
+
+      if (testerErr) {
+        console.error('[AuthContext] testers query failed', testerErr)
+      }
 
       setTester((testerRows?.[0] as Tester | undefined) ?? null)
     } else {
