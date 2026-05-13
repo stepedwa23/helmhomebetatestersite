@@ -21,6 +21,23 @@ export async function listBugsAdmin(projectId: string): Promise<BugReport[]> {
   return (data ?? []) as BugReport[]
 }
 
+/** Bug joined with tester contact info, for the triage table view. */
+export interface BugReportWithTester extends BugReport {
+  tester: { id: string; name: string; email: string } | null
+}
+
+export async function listBugsWithTester(
+  projectId: string,
+): Promise<BugReportWithTester[]> {
+  const { data, error } = await supabase
+    .from('bug_reports')
+    .select('*, tester:testers(id, name, email)')
+    .eq('project_id', projectId)
+    .order('submitted_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as BugReportWithTester[]
+}
+
 export async function getBugAdmin(id: string): Promise<BugReport | null> {
   const { data, error } = await supabase
     .from('bug_reports')
@@ -30,6 +47,17 @@ export async function getBugAdmin(id: string): Promise<BugReport | null> {
     .limit(1)
   if (error) throw error
   return (data?.[0] as BugReport | undefined) ?? null
+}
+
+export async function getBugWithTester(id: string): Promise<BugReportWithTester | null> {
+  const { data, error } = await supabase
+    .from('bug_reports')
+    .select('*, tester:testers(id, name, email)')
+    .eq('id', id)
+    .order('submitted_at', { ascending: false })
+    .limit(1)
+  if (error) throw error
+  return (data?.[0] as BugReportWithTester | undefined) ?? null
 }
 
 export async function updateBugStatus(id: string, status: BugStatus): Promise<void> {
