@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { renderTipTapToHtml } from './tiptap-html'
 import type { AppVersion, TipTapDoc } from '../types'
 
 export async function listVersions(projectId: string): Promise<AppVersion[]> {
@@ -73,4 +74,35 @@ export async function setVersionCurrent(id: string): Promise<void> {
 export async function deleteVersion(id: string): Promise<void> {
   const { error } = await supabase.from('app_versions').delete().eq('id', id)
   if (error) throw error
+}
+
+// ---------- Notify testers ----------
+
+export interface NotifyResult {
+  sent: number
+  failed: Array<{ email: string; error: string }>
+  total: number
+  message?: string
+}
+
+/**
+ * Render the version's patch notes to HTML client-side, then call the
+ * `notify-version-published` Edge Function which actually sends the emails.
+ *
+ * Rendering client-side avoids needing TipTap in the Deno runtime (which is
+ * doable but adds dependency weight) and keeps the email content visually
+ * identical to what testers see in the app.
+ */
+export async function notifyVersion(
+  versionId: string,
+  patchNotes: TipTapDoc,
+): Promise<NotifyResult> {
+  const rendered_html = renderTipTapToHtml(patchNotes)
+  const { data, error } = await supabase.functions.invoke<NotifyResult>(
+    'notify-version-published',
+    { body: { version_id: versionId, rendered_html } },
+  )
+  if (error) throw error
+  if (!data) throw new Error('Function returned no data')
+  return data
 }

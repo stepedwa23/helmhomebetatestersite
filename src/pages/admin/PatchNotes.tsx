@@ -7,6 +7,7 @@ import {
   Star,
   FileText,
   Download,
+  Mail,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { useAuth } from '../../contexts/AuthContext'
@@ -16,6 +17,7 @@ import {
   updateVersion,
   deleteVersion,
   setVersionCurrent,
+  notifyVersion,
 } from '../../lib/appVersions'
 import { listDownloads } from '../../lib/appDownloads'
 import type { AppDownload, AppVersion } from '../../types'
@@ -39,6 +41,7 @@ export default function AdminPatchNotes() {
   const [deleting, setDeleting] = useState<AppVersion | null>(null)
   const [managing, setManaging] = useState<AppVersion | null>(null)
   const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const [notifyStatus, setNotifyStatus] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     if (!project) return
@@ -80,7 +83,7 @@ export default function AdminPatchNotes() {
   }
 
   async function handleAdd(values: VersionFormValues) {
-    await createVersion(
+    const created = await createVersion(
       {
         project_id: project!.id,
         version: values.version,
@@ -92,6 +95,9 @@ export default function AdminPatchNotes() {
     )
     setShowAdd(false)
     await refresh()
+    if (values.notify_testers) {
+      await sendNotification(created.id, values.patch_notes)
+    }
   }
 
   async function handleEdit(values: VersionFormValues) {
@@ -104,6 +110,37 @@ export default function AdminPatchNotes() {
     })
     setEditing(null)
     await refresh()
+    if (values.notify_testers) {
+      await sendNotification(editing.id, values.patch_notes)
+    }
+  }
+
+  async function sendNotification(versionId: string, patchNotes: AppVersion['patch_notes']) {
+    setNotifyStatus(null)
+    try {
+      const result = await notifyVersion(versionId, patchNotes)
+      const failed = result.failed.length
+      setNotifyStatus(
+        failed > 0
+          ? `Notified ${result.sent} of ${result.total} testers. ${failed} failed — see browser console for details.`
+          : result.total === 0
+            ? 'No active testers to notify.'
+            : `Notification sent to ${result.sent} tester${result.sent === 1 ? '' : 's'}.`,
+      )
+      if (failed > 0) {
+        console.warn('[PatchNotes] Some notifications failed', result.failed)
+      }
+    } catch (err) {
+      setNotifyStatus(
+        err instanceof Error
+          ? `Could not send notification: ${err.message}`
+          : 'Could not send notification.',
+      )
+    }
+  }
+
+  async function handleNotifyFromRow(v: AppVersion) {
+    await sendNotification(v.id, v.patch_notes)
   }
 
   async function handleMarkCurrent(v: AppVersion) {
@@ -142,6 +179,19 @@ export default function AdminPatchNotes() {
       {error && (
         <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
           {error}
+        </div>
+      )}
+
+      {notifyStatus && (
+        <div className="mb-4 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 flex items-center justify-between gap-3">
+          <span>{notifyStatus}</span>
+          <button
+            type="button"
+            onClick={() => setNotifyStatus(null)}
+            className="text-xs text-gray-500 hover:text-gray-900"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -227,6 +277,10 @@ export default function AdminPatchNotes() {
                         onManageDownloads={() => {
                           setOpenMenu(null)
                           setManaging(v)
+                        }}
+                        onNotify={() => {
+                          setOpenMenu(null)
+                          handleNotifyFromRow(v)
                         }}
                         onMarkCurrent={() => {
                           setOpenMenu(null)
@@ -320,12 +374,14 @@ function RowMenu({
   version,
   onEdit,
   onManageDownloads,
+  onNotify,
   onMarkCurrent,
   onDelete,
 }: {
   version: AppVersion
   onEdit: () => void
   onManageDownloads: () => void
+  onNotify: () => void
   onMarkCurrent: () => void
   onDelete: () => void
 }) {
@@ -336,6 +392,7 @@ function RowMenu({
     >
       <MenuItem icon={Pencil} label="Edit" onClick={onEdit} />
       <MenuItem icon={Download} label="Manage downloads" onClick={onManageDownloads} />
+      <MenuItem icon={Mail} label="Notify testers" onClick={onNotify} />
       {!version.is_current && (
         <MenuItem icon={Star} label="Mark as current" onClick={onMarkCurrent} />
       )}

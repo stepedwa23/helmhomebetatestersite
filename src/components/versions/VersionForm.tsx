@@ -8,6 +8,7 @@ export interface VersionFormValues {
   release_date: string
   patch_notes: TipTapDoc
   is_current: boolean
+  notify_testers: boolean
 }
 
 const EMPTY_VALUES: VersionFormValues = {
@@ -15,6 +16,7 @@ const EMPTY_VALUES: VersionFormValues = {
   release_date: '',
   patch_notes: null,
   is_current: false,
+  notify_testers: false,
 }
 
 interface VersionFormProps {
@@ -105,6 +107,24 @@ export default function VersionForm({
             {currentlyMarkedCurrent
               ? 'Already marked current. Unchecking will leave testers with no current version banner until you mark another.'
               : 'Marking this current will automatically unmark any previous current version. The tester dashboard shows whatever is marked current.'}
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={values.notify_testers}
+          onChange={(e) => set('notify_testers', e.target.checked)}
+          className="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+        />
+        <span className="text-sm">
+          <span className="font-medium text-gray-900">
+            Send notification email to testers on save
+          </span>
+          <span className="block text-xs text-gray-500">
+            Emails every active tester with the patch notes. You can also send (or
+            re-send) later via the row menu on the Patch Notes page.
           </span>
         </span>
       </label>

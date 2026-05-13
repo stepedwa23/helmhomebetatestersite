@@ -117,7 +117,9 @@ export default function AdminTesters() {
   }
 
   async function handleToggleStatus(t: Tester) {
-    const next = t.status === 'inactive' ? 'active' : 'inactive'
+    // Toggle between active and inactive. From "invited" we go forward to
+    // active (the natural transition once a tester is participating).
+    const next = t.status === 'active' ? 'inactive' : 'active'
     await updateTesterStatus(t.id, next)
     await refresh()
   }
@@ -332,8 +334,9 @@ function RowMenu({
   onToggleStatus,
   onDelete,
 }: RowMenuProps) {
-  const ToggleIcon = tester.status === 'inactive' ? CircleCheck : CircleSlash
-  const toggleLabel = tester.status === 'inactive' ? 'Mark active' : 'Mark inactive'
+  const isActive = tester.status === 'active'
+  const ToggleIcon = isActive ? CircleSlash : CircleCheck
+  const toggleLabel = isActive ? 'Mark inactive' : 'Mark active'
 
   return (
     <div
