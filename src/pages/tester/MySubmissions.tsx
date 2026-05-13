@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Bug, ImageIcon } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { useAuth } from '../../contexts/AuthContext'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import PreviewModeBanner from '../../components/PreviewModeBanner'
 import {
   BugStatusBadge,
   BugSeverityBadge,
@@ -22,14 +23,18 @@ const STATUS_FILTER_LABEL: Record<BugStatus | 'all', string> = {
 }
 
 export default function MySubmissions() {
-  const { tester, rolesLoading, isAdmin } = useAuth()
+  const { tester, rolesLoading, effectiveIsAdmin, previewAsTester } = useAuth()
   const [bugs, setBugs] = useState<BugReportPublic[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<BugStatus | 'all'>('all')
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
-    if (!tester) return
+    if (!tester) {
+      // Admin-in-preview has no tester row → nothing to fetch. Render empty list.
+      setBugs([])
+      return
+    }
     setError(null)
     try {
       const rows = await listMyBugs(tester.id)
@@ -51,7 +56,8 @@ export default function MySubmissions() {
     )
   }
 
-  if (isAdmin || !tester) {
+  // True admin (not previewing) — show the redirect notice.
+  if (effectiveIsAdmin) {
     return (
       <div className="p-6 md:p-8">
         <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -64,6 +70,9 @@ export default function MySubmissions() {
     )
   }
 
+  // From here, either a real tester (tester !== null) or admin in preview mode (tester === null).
+  const isPreview = previewAsTester
+
   const filtered =
     statusFilter === 'all'
       ? bugs
@@ -71,12 +80,19 @@ export default function MySubmissions() {
 
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto">
+      <PreviewModeBanner />
+
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">My submissions</h1>
           <p className="mt-1 text-sm text-gray-500">
             Bugs you've reported and their current status. Click a row to see the full details.
           </p>
+          {isPreview && (
+            <p className="mt-1 text-xs text-amber-700">
+              In preview mode, this list is empty because there's no tester row.
+            </p>
+          )}
         </div>
         <Link
           to="/report-bug"

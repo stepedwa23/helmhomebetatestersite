@@ -29,6 +29,14 @@ interface AuthContextValue {
   // that depend on accurate role info (e.g. the role-conditional sidebar)
   // can read this to show a loading state.
   rolesLoading: boolean
+  // True when the admin has opted into "view as a tester" mode. The underlying
+  // auth user is still the admin; only the UI experience is switched.
+  // Submissions/edits remain disabled since there's no real tester row to act as.
+  previewAsTester: boolean
+  setPreviewAsTester: (v: boolean) => void
+  // Derived: whether to render admin chrome right now. `isAdmin && !previewAsTester`.
+  // Use this instead of `isAdmin` in all UI-routing decisions.
+  effectiveIsAdmin: boolean
   signOut: () => Promise<void>
   refresh: () => Promise<void>
 }
@@ -42,6 +50,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
   const [rolesLoading, setRolesLoading] = useState(false)
+  const [previewAsTester, setPreviewAsTester] = useState(false)
+
+  // When the user is not actually an admin, force preview off so the flag
+  // doesn't linger in a weird state if they sign in/out across role changes.
+  useEffect(() => {
+    if (!isAdmin && previewAsTester) setPreviewAsTester(false)
+  }, [isAdmin, previewAsTester])
+
+  const effectiveIsAdmin = isAdmin && !previewAsTester
 
   // Load the user's project + tester profile (if any).
   // RLS scopes this to rows the user can actually see, so we don't need to filter.
@@ -186,10 +203,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin,
       project,
       rolesLoading,
+      previewAsTester,
+      setPreviewAsTester,
+      effectiveIsAdmin,
       signOut,
       refresh,
     }),
-    [session, loading, tester, isAdmin, project, rolesLoading],
+    [
+      session,
+      loading,
+      tester,
+      isAdmin,
+      project,
+      rolesLoading,
+      previewAsTester,
+      effectiveIsAdmin,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

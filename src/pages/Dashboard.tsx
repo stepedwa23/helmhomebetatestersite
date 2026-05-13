@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
 import PagePlaceholder from '../components/PagePlaceholder'
 import LoadingSpinner from '../components/LoadingSpinner'
+import PreviewModeBanner from '../components/PreviewModeBanner'
 import TipTapView from '../components/editor/TipTapView'
 import { getCurrentVersion } from '../lib/appVersions'
 import { listDownloads, getDownloadUrl } from '../lib/appDownloads'
@@ -18,9 +19,9 @@ import {
 } from '../types'
 
 export default function Dashboard() {
-  const { isAdmin, tester, project, rolesLoading } = useAuth()
+  const { effectiveIsAdmin, tester, project, rolesLoading } = useAuth()
 
-  if (isAdmin) {
+  if (effectiveIsAdmin) {
     return (
       <PagePlaceholder
         title="Admin dashboard"
@@ -30,6 +31,7 @@ export default function Dashboard() {
   }
 
   // Tester dashboard — current beta version + patch notes + quick links.
+  // This branch also runs when the admin is in preview mode (effectiveIsAdmin=false).
   return <TesterDashboard tester={tester} projectId={project?.id ?? null} rolesLoading={rolesLoading} />
 }
 
@@ -89,6 +91,8 @@ function TesterDashboard({ tester, projectId, rolesLoading }: TesterDashboardPro
 
   return (
     <div className="p-6 md:p-8 max-w-3xl mx-auto">
+      <PreviewModeBanner />
+
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">
           {firstName ? `Welcome back, ${firstName}` : 'Welcome'}

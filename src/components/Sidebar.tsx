@@ -11,6 +11,8 @@ import {
   FileText,
   Settings,
   LogOut,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import type { ComponentType, SVGProps } from 'react'
 import { useAuth } from '../contexts/AuthContext'
@@ -51,9 +53,18 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ onNavigate }: SidebarProps) {
-  const { isAdmin, signOut, tester } = useAuth()
+  const { isAdmin, effectiveIsAdmin, previewAsTester, setPreviewAsTester, signOut, tester } =
+    useAuth()
   const navigate = useNavigate()
-  const items = isAdmin ? ADMIN_NAV : TESTER_NAV
+  const items = effectiveIsAdmin ? ADMIN_NAV : TESTER_NAV
+
+  function togglePreview() {
+    setPreviewAsTester(!previewAsTester)
+    // Bounce to /dashboard so the user lands on a sensible page regardless of
+    // whether the current route exists for both roles.
+    navigate('/dashboard')
+    onNavigate?.()
+  }
 
   async function handleSignOut() {
     await signOut()
@@ -65,9 +76,41 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       <div className="px-5 pt-5 pb-3">
         <div className="text-base font-semibold text-white">Helm Beta</div>
         <div className="mt-0.5 text-xs text-slate-400">
-          {isAdmin ? 'Admin console' : 'Tester portal'}
+          {effectiveIsAdmin
+            ? 'Admin console'
+            : isAdmin
+              ? 'Tester portal (preview)'
+              : 'Tester portal'}
         </div>
       </div>
+
+      {/* Preview-as-tester toggle. Admin only. */}
+      {isAdmin && (
+        <div className="px-3 pb-2">
+          <button
+            type="button"
+            onClick={togglePreview}
+            className={[
+              'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors',
+              previewAsTester
+                ? 'bg-amber-500/20 text-amber-200 hover:bg-amber-500/30'
+                : 'bg-white/5 text-slate-300 hover:bg-white/10',
+            ].join(' ')}
+          >
+            {previewAsTester ? (
+              <>
+                <EyeOff className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Exit tester preview</span>
+              </>
+            ) : (
+              <>
+                <Eye className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Preview as tester</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
         {items.map(({ to, label, icon: Icon }) => (
