@@ -15,6 +15,7 @@ import MySubmissions from './pages/tester/MySubmissions'
 import HelpLibrary from './pages/tester/HelpLibrary'
 import HelpArticleView from './pages/tester/HelpArticleView'
 import Suggestions from './pages/tester/Suggestions'
+import Feedback from './pages/tester/Feedback'
 
 // Admin pages
 import AdminTesters from './pages/admin/Testers'
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="/help" element={<HelpLibrary />} />
         <Route path="/help/:slug" element={<HelpArticleView />} />
         <Route path="/suggestions" element={<Suggestions />} />
+        <Route path="/feedback" element={<Feedback />} />
 
         {/* Admin pages */}
         <Route path="/admin/testers" element={<AdminTesters />} />

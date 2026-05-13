@@ -99,6 +99,38 @@ export async function listCycleTesters(cycleId: string): Promise<CycleTester[]> 
 }
 
 /**
+ * All cycles a given tester is assigned to, joined through cycle_testers.
+ * Used by the tester feedback page to scope the cycle picker.
+ *
+ * Supabase's inferred type for the nested `cycle:test_cycles(*)` join is
+ * `any[]` (because it doesn't distinguish to-one vs to-many from a string
+ * select). At runtime it's a single object for to-one FKs, so we cast
+ * through `unknown` to the actual shape and treat the field as either an
+ * object or an array defensively.
+ */
+export async function listCyclesForTester(testerId: string): Promise<TestCycle[]> {
+  const { data, error } = await supabase
+    .from('cycle_testers')
+    .select('cycle:test_cycles(*)')
+    .eq('tester_id', testerId)
+  if (error) throw error
+
+  const rows = (data ?? []) as unknown as Array<{
+    cycle: TestCycle | TestCycle[] | null
+  }>
+  const cycles = rows
+    .map((r) => (Array.isArray(r.cycle) ? r.cycle[0] : r.cycle))
+    .filter((c): c is TestCycle => !!c)
+
+  cycles.sort((a, b) => {
+    const aDate = a.start_date ?? a.created_at
+    const bDate = b.start_date ?? b.created_at
+    return bDate.localeCompare(aDate)
+  })
+  return cycles
+}
+
+/**
  * Fetch every cycle_testers row across all cycles in a project in ONE query.
  * The list view uses this to show "n testers assigned" per cycle without
  * making N round-trips. Returns rows grouped by cycle_id on the caller side.

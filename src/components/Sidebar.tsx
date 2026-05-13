@@ -9,7 +9,6 @@ import {
   CalendarRange,
   MessageSquareText,
   FileText,
-  Settings,
   LogOut,
   Eye,
   EyeOff,
@@ -32,8 +31,9 @@ const TESTER_NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/report-bug', label: 'Report a Bug', icon: Bug },
   { to: '/my-submissions', label: 'My Submissions', icon: ClipboardList },
-  { to: '/help', label: 'Help Library', icon: BookOpen },
   { to: '/suggestions', label: 'Suggestions', icon: Lightbulb },
+  { to: '/feedback', label: 'Feedback', icon: MessageSquareText },
+  { to: '/help', label: 'Help Library', icon: BookOpen },
 ]
 
 const ADMIN_NAV: NavItem[] = [
@@ -45,7 +45,9 @@ const ADMIN_NAV: NavItem[] = [
   { to: '/admin/suggestions', label: 'Suggestions', icon: Lightbulb },
   { to: '/admin/patch-notes', label: 'Patch Notes', icon: FileText },
   { to: '/admin/help', label: 'Help Library', icon: BookOpen },
-  { to: '/admin/settings', label: 'Settings', icon: Settings },
+  // Settings is intentionally not in the nav — the page is still routed at
+  // /admin/settings as a placeholder. Add `{ to: '/admin/settings', ... }`
+  // back to this list when there's real content to put there.
 ]
 
 interface SidebarProps {
