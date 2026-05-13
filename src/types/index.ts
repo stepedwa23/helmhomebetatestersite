@@ -65,6 +65,32 @@ export const SUGGESTION_STATUS_OPTIONS = [
 ] as const
 export type SuggestionStatus = (typeof SUGGESTION_STATUS_OPTIONS)[number]
 
+export const APP_PLATFORM_OPTIONS = [
+  'macos_arm64',
+  'macos_x64',
+  'windows_x64',
+  'windows_arm64',
+] as const
+export type AppPlatform = (typeof APP_PLATFORM_OPTIONS)[number]
+
+export const APP_PLATFORM_LABEL: Record<AppPlatform, string> = {
+  macos_arm64: 'macOS (Apple Silicon)',
+  macos_x64: 'macOS (Intel)',
+  windows_x64: 'Windows (x64)',
+  windows_arm64: 'Windows (ARM64)',
+}
+
+/**
+ * Active platforms we ship Helm for. Locked from the spec at scaffold time —
+ * tester dashboard renders a slot for each. To add macOS Intel later, just
+ * append `'macos_x64'` here; the enum + schema already support it.
+ */
+export const ACTIVE_PLATFORMS: AppPlatform[] = [
+  'macos_arm64',
+  'windows_x64',
+  'windows_arm64',
+]
+
 // ---------- Reusable shapes ----------
 
 export interface CalmModeState {
@@ -187,6 +213,18 @@ export interface AppVersion {
   is_current: boolean
   created_at: string
   created_by: string
+}
+
+export interface AppDownload {
+  id: string
+  version_id: string
+  platform: AppPlatform
+  filename: string
+  storage_path: string
+  mime_type: string | null
+  size_bytes: number
+  uploaded_at: string
+  uploaded_by: string
 }
 
 export interface HelpArticle {

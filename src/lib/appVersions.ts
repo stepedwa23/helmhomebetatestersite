@@ -32,15 +32,27 @@ export interface CreateVersionInput {
   is_current?: boolean
 }
 
-export async function createVersion(input: CreateVersionInput): Promise<AppVersion> {
+export async function createVersion(
+  input: CreateVersionInput,
+  createdBy: string,
+): Promise<AppVersion> {
   // The schema enforces "one is_current per project" via a partial unique index.
   // If you mark a new version as current, the SQL trigger flips the previous one off.
   const { data, error } = await supabase
     .from('app_versions')
-    .insert(input)
+    .insert({
+      project_id: input.project_id,
+      version: input.version.trim(),
+      release_date: input.release_date || null,
+      patch_notes: input.patch_notes ?? null,
+      is_current: input.is_current ?? false,
+      created_by: createdBy,
+    })
     .select('*')
   if (error) throw error
-  return (data?.[0] as AppVersion) ?? Promise.reject(new Error('Insert returned no row'))
+  const row = (data?.[0] as AppVersion | undefined) ?? null
+  if (!row) throw new Error('Insert returned no row')
+  return row
 }
 
 export async function updateVersion(id: string, patch: Partial<AppVersion>): Promise<void> {
@@ -55,5 +67,10 @@ export async function setVersionCurrent(id: string): Promise<void> {
     .from('app_versions')
     .update({ is_current: true })
     .eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteVersion(id: string): Promise<void> {
+  const { error } = await supabase.from('app_versions').delete().eq('id', id)
   if (error) throw error
 }
