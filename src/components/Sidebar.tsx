@@ -9,6 +9,7 @@ import {
   CalendarRange,
   MessageSquareText,
   FileText,
+  Megaphone,
   LogOut,
   Eye,
   EyeOff,
@@ -38,6 +39,7 @@ const TESTER_NAV: NavItem[] = [
 
 const ADMIN_NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/admin/notices', label: 'Notices', icon: Megaphone },
   { to: '/admin/testers', label: 'Testers', icon: Users },
   { to: '/admin/cycles', label: 'Test Cycles', icon: CalendarRange },
   { to: '/admin/bugs', label: 'Bug Triage', icon: Bug },

@@ -399,6 +399,7 @@ function AdminCommentsPanel({ bugId }: { bugId: string }) {
       setComments(rows)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load comments')
+      setComments([])
     }
   }, [bugId])
 

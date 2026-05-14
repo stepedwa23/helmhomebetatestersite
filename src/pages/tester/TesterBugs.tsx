@@ -414,6 +414,9 @@ function BugCommentsSection({ bugId }: { bugId: string }) {
       setComments(rows)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load comments')
+      // Clear the loading state so the error banner becomes visible rather
+      // than leaving the spinner running forever.
+      setComments([])
     }
   }, [bugId])
 

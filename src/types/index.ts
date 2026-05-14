@@ -65,6 +65,15 @@ export const SUGGESTION_STATUS_OPTIONS = [
 ] as const
 export type SuggestionStatus = (typeof SUGGESTION_STATUS_OPTIONS)[number]
 
+export const NOTICE_SEVERITY_OPTIONS = ['info', 'warning', 'critical'] as const
+export type NoticeSeverity = (typeof NOTICE_SEVERITY_OPTIONS)[number]
+
+export const NOTICE_SEVERITY_LABEL: Record<NoticeSeverity, string> = {
+  info: 'Info',
+  warning: 'Warning',
+  critical: 'Critical',
+}
+
 export const APP_PLATFORM_OPTIONS = [
   'macos_arm64',
   'macos_x64',
@@ -247,6 +256,17 @@ export interface HelpArticle {
   category: string | null
   is_pinned: boolean
   order_index: number
+  created_at: string
+  updated_at: string
+  created_by: string
+}
+
+export interface Notice {
+  id: string
+  project_id: string
+  body: string
+  severity: NoticeSeverity
+  is_active: boolean
   created_at: string
   updated_at: string
   created_by: string
