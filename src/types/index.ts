@@ -194,6 +194,17 @@ export interface BugAttachment {
   uploaded_at: string
 }
 
+export interface BugComment {
+  id: string
+  bug_id: string
+  /** Null for admin-authored comments (admin doesn't have a tester row). */
+  tester_id: string | null
+  author_user_id: string
+  body: string
+  created_at: string
+  updated_at: string
+}
+
 export interface Feedback {
   id: string
   project_id: string

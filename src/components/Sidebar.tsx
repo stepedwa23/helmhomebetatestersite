@@ -30,7 +30,7 @@ interface NavItem {
 const TESTER_NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/report-bug', label: 'Report a Bug', icon: Bug },
-  { to: '/my-submissions', label: 'My Submissions', icon: ClipboardList },
+  { to: '/bugs', label: 'Bug Reports', icon: ClipboardList },
   { to: '/suggestions', label: 'Suggestions', icon: Lightbulb },
   { to: '/feedback', label: 'Feedback', icon: MessageSquareText },
   { to: '/help', label: 'Help Library', icon: BookOpen },

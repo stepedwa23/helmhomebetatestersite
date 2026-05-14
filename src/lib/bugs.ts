@@ -89,6 +89,36 @@ export async function listMyBugs(testerId: string): Promise<BugReportPublic[]> {
   return (data ?? []) as BugReportPublic[]
 }
 
+/**
+ * All bugs in the project visible to the current tester. Backed by the
+ * bug_reports_public view (which excludes admin-only triage_notes) plus the
+ * updated bug_reports_tester_select_all RLS policy.
+ *
+ * Joined with the tester's name/email so the UI can show "submitted by X".
+ */
+export interface BugReportPublicWithTester extends BugReportPublic {
+  tester: { id: string; name: string; email: string } | null
+}
+
+export async function listAllBugsForTesters(
+  projectId: string,
+): Promise<BugReportPublicWithTester[]> {
+  const { data, error } = await supabase
+    .from('bug_reports_public')
+    .select('*, tester:testers(id, name, email)')
+    .eq('project_id', projectId)
+    .order('submitted_at', { ascending: false })
+  if (error) throw error
+  return ((data ?? []) as unknown as Array<
+    BugReportPublic & {
+      tester: BugReportPublicWithTester['tester'] | BugReportPublicWithTester['tester'][] | null
+    }
+  >).map((row) => ({
+    ...row,
+    tester: Array.isArray(row.tester) ? row.tester[0] ?? null : row.tester,
+  }))
+}
+
 // ---------- Tester submit ----------
 
 export interface SubmitBugInput {

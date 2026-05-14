@@ -11,7 +11,7 @@ import Dashboard from './pages/Dashboard'
 
 // Tester-facing pages
 import ReportBug from './pages/tester/ReportBug'
-import MySubmissions from './pages/tester/MySubmissions'
+import TesterBugs from './pages/tester/TesterBugs'
 import HelpLibrary from './pages/tester/HelpLibrary'
 import HelpArticleView from './pages/tester/HelpArticleView'
 import Suggestions from './pages/tester/Suggestions'
@@ -66,7 +66,9 @@ export default function App() {
 
         {/* Tester pages */}
         <Route path="/report-bug" element={<ReportBug />} />
-        <Route path="/my-submissions" element={<MySubmissions />} />
+        <Route path="/bugs" element={<TesterBugs />} />
+        {/* Legacy alias — keep so old bookmarks / email links don't 404. */}
+        <Route path="/my-submissions" element={<TesterBugs />} />
         <Route path="/help" element={<HelpLibrary />} />
         <Route path="/help/:slug" element={<HelpArticleView />} />
         <Route path="/suggestions" element={<Suggestions />} />

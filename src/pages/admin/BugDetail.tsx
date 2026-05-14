@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ImageIcon, Save, CheckCircle2 } from 'lucide-react'
-import { format } from 'date-fns'
+import {
+  ArrowLeft,
+  ImageIcon,
+  Save,
+  CheckCircle2,
+  MessageSquare,
+  Send,
+  Trash2,
+  Pencil,
+} from 'lucide-react'
+import { format, formatDistanceToNow } from 'date-fns'
+import { useAuth } from '../../contexts/AuthContext'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import {
   BugStatusBadge,
@@ -14,6 +24,13 @@ import {
 } from '../../lib/bugs'
 import type { BugReportWithTester } from '../../lib/bugs'
 import { listBugAttachments, getAttachmentUrl } from '../../lib/attachments'
+import {
+  listComments,
+  createComment,
+  updateComment,
+  deleteComment,
+} from '../../lib/bugComments'
+import type { BugCommentWithAuthor } from '../../lib/bugComments'
 import type { BugAttachment, BugStatus } from '../../types'
 import { BUG_CATEGORY_LABEL, BUG_STATUS_OPTIONS } from '../../types'
 
@@ -281,6 +298,11 @@ export default function AdminBugDetail() {
                 </div>
               </Card>
 
+              {/* Cross-tester discussion */}
+              <Card title="Discussion (visible to testers)">
+                <AdminCommentsPanel bugId={bug.id} />
+              </Card>
+
               {/* Triage notes (admin-only) */}
               <Card
                 title="Triage notes"
@@ -356,6 +378,200 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     <div className="flex items-baseline gap-2">
       <dt className="text-gray-500 text-xs whitespace-nowrap">{label}:</dt>
       <dd className="text-gray-700">{children}</dd>
+    </div>
+  )
+}
+
+// ---------- Admin comments panel ----------
+
+function AdminCommentsPanel({ bugId }: { bugId: string }) {
+  const { user, project } = useAuth()
+  const [comments, setComments] = useState<BugCommentWithAuthor[] | null>(null)
+  const [draft, setDraft] = useState('')
+  const [posting, setPosting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState('')
+
+  const refresh = useCallback(async () => {
+    try {
+      const rows = await listComments(bugId)
+      setComments(rows)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load comments')
+    }
+  }, [bugId])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  async function handlePost() {
+    setError(null)
+    if (!draft.trim() || !user) return
+    setPosting(true)
+    try {
+      // Admin posts → tester_id is null. RLS allows admin to insert with null tester_id.
+      await createComment({ bug_id: bugId, tester_id: null, body: draft }, user.id)
+      setDraft('')
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to post comment')
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  async function handleSaveEdit(commentId: string) {
+    if (!editDraft.trim()) return
+    try {
+      await updateComment(commentId, editDraft)
+      setEditingId(null)
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update comment')
+    }
+  }
+
+  async function handleDelete(commentId: string) {
+    if (!confirm('Delete this comment?')) return
+    try {
+      await deleteComment(commentId)
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete comment')
+    }
+  }
+
+  const adminUserId = project?.owner_id
+
+  return (
+    <div>
+      {error && (
+        <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          {error}
+        </div>
+      )}
+
+      {comments === null ? (
+        <div className="flex justify-center py-4">
+          <LoadingSpinner size="sm" />
+        </div>
+      ) : comments.length === 0 ? (
+        <p className="text-xs text-gray-500 italic mb-3">No comments yet.</p>
+      ) : (
+        <ul className="space-y-2 mb-3">
+          {comments.map((c) => {
+            const isMine = c.author_user_id === user?.id
+            const isAdminAuthored = c.author_user_id === adminUserId
+            const authorName = isAdminAuthored
+              ? 'Admin (you)'
+              : c.tester?.name ?? 'Unknown'
+            const edited = c.updated_at !== c.created_at
+
+            if (editingId === c.id) {
+              return (
+                <li key={c.id} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <textarea
+                    value={editDraft}
+                    onChange={(e) => setEditDraft(e.target.value)}
+                    rows={3}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                    autoFocus
+                  />
+                  <div className="mt-2 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveEdit(c.id)}
+                      className="px-2 py-1 text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 rounded"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </li>
+              )
+            }
+
+            return (
+              <li key={c.id} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="font-semibold text-gray-900">{authorName}</span>
+                    {isAdminAuthored && (
+                      <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-[10px] font-medium uppercase tracking-wide">
+                        Admin
+                      </span>
+                    )}
+                    <span className="text-gray-500">
+                      {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
+                      {edited && <span className="ml-1 text-gray-400 italic">(edited)</span>}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {isMine && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(c.id)
+                          setEditDraft(c.body)
+                        }}
+                        className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                        aria-label="Edit comment"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                    )}
+                    {/* Admin can delete anyone's comment via RLS. */}
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(c.id)}
+                      className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                      aria-label="Delete comment"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.body}</p>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {/* Compose */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          disabled={posting}
+          rows={3}
+          placeholder="Reply as Admin. Testers will see your message in the bug's discussion."
+          className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y bg-white"
+        />
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <span className="text-xs text-gray-500 inline-flex items-center gap-1">
+            <MessageSquare className="w-3 h-3" />
+            Visible to all testers in this project.
+          </span>
+          <button
+            type="button"
+            onClick={handlePost}
+            disabled={posting || !draft.trim()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-400 rounded"
+          >
+            {posting ? <LoadingSpinner size="sm" className="border-white" /> : <Send className="w-3.5 h-3.5" />}
+            Post comment
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
