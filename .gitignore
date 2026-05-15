@@ -33,3 +33,4 @@ pnpm-debug.log*
 # Supabase CLI local state (keep schema.sql + functions, ignore cache)
 supabase/.branches
 supabase/.temp
+tsconfig.app.tsbuildinfo
