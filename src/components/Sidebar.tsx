@@ -43,6 +43,9 @@ const ADMIN_NAV: NavItem[] = [
   { to: '/admin/testers', label: 'Testers', icon: Users },
   { to: '/admin/cycles', label: 'Test Cycles', icon: CalendarRange },
   { to: '/admin/bugs', label: 'Bug Triage', icon: Bug },
+  // Admin can submit their own bugs through the regular tester flow.
+  // Requires a self-tester profile (auto-prompted on first visit).
+  { to: '/report-bug', label: 'Report a Bug', icon: ClipboardList },
   { to: '/admin/feedback', label: 'Feedback', icon: MessageSquareText },
   { to: '/admin/suggestions', label: 'Suggestions', icon: Lightbulb },
   { to: '/admin/patch-notes', label: 'Patch Notes', icon: FileText },

@@ -107,6 +107,42 @@ export async function deleteTester(id: string): Promise<void> {
 // ---------- Invite (Edge Function) ----------
 
 /**
+ * Create a tester row for the CURRENT authenticated user — used by admin
+ * to self-attach as a tester so they can submit bugs / suggestions / feedback
+ * through the regular tester flow.
+ *
+ * Distinct from createTester (the invite flow), which sets user_id=null and
+ * relies on link-tester-account to populate it after the invitee accepts.
+ * Here we set user_id immediately and skip the invite entirely.
+ *
+ * RLS-wise this works because the project owner (admin) has full INSERT
+ * permission on testers via the testers_admin_all policy.
+ */
+export async function createSelfTesterProfile(args: {
+  project_id: string
+  user_id: string
+  email: string
+  name: string
+}): Promise<Tester> {
+  const { data, error } = await supabase
+    .from('testers')
+    .insert({
+      project_id: args.project_id,
+      user_id: args.user_id,
+      name: args.name.trim(),
+      email: args.email.trim().toLowerCase(),
+      status: 'active' satisfies TesterStatus,
+      joined_at: new Date().toISOString(),
+      created_by: args.user_id,
+    })
+    .select('*')
+  if (error) throw error
+  const row = (data?.[0] as Tester | undefined) ?? null
+  if (!row) throw new Error('Insert returned no row')
+  return row
+}
+
+/**
  * Trigger the Supabase Auth magic-link invite for an existing tester row.
  * Requires the `invite-tester` Edge Function to be deployed and Resend (or
  * Supabase's default SMTP) configured.

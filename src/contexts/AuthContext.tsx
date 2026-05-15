@@ -114,23 +114,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       setIsAdmin(userIsAdmin)
 
-      // 3. Tester record for this user (only if not admin — admins typically aren't testers).
-      if (!userIsAdmin) {
-        const { data: testerRows, error: testerErr } = await supabase
-          .from('testers')
-          .select('*')
-          .eq('user_id', currentSession.user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
+      // 3. Tester record for this user.
+      // We load this for EVERYONE (including admin) — admin can also be a
+      // tester (using their own tester row to self-submit bugs / suggestions /
+      // feedback). When admin has no tester row, this stays null and pages
+      // that need a tester profile prompt them to create one.
+      const { data: testerRows, error: testerErr } = await supabase
+        .from('testers')
+        .select('*')
+        .eq('user_id', currentSession.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
 
-        if (testerErr) {
-          console.error('[AuthContext] testers query failed', testerErr)
-        }
-
-        setTester((testerRows?.[0] as Tester | undefined) ?? null)
-      } else {
-        setTester(null)
+      if (testerErr) {
+        console.error('[AuthContext] testers query failed', testerErr)
       }
+
+      setTester((testerRows?.[0] as Tester | undefined) ?? null)
     } finally {
       setRolesLoading(false)
     }
