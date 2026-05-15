@@ -200,10 +200,7 @@ export default function AdminFeedback() {
                   </td>
                   <td className="px-4 py-3 text-gray-700 text-xs">
                     {f.tester ? (
-                      <>
-                        <div className="font-medium text-gray-800">{f.tester.name}</div>
-                        <div className="text-gray-500 truncate">{f.tester.email}</div>
-                      </>
+                      <div className="font-medium text-gray-800">{f.tester.name}</div>
                     ) : (
                       <Dash />
                     )}

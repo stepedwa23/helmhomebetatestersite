@@ -164,10 +164,7 @@ export default function AdminSuggestions() {
                   </td>
                   <td className="px-4 py-3 text-gray-700 text-xs">
                     {s.tester ? (
-                      <>
-                        <div className="font-medium text-gray-800">{s.tester.name}</div>
-                        <div className="text-gray-500 truncate">{s.tester.email}</div>
-                      </>
+                      <div className="font-medium text-gray-800">{s.tester.name}</div>
                     ) : (
                       <span className="text-gray-300">—</span>
                     )}

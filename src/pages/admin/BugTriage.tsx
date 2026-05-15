@@ -210,10 +210,7 @@ export default function AdminBugTriage() {
                   </td>
                   <td className="px-4 py-3 text-gray-700 text-xs">
                     {b.tester ? (
-                      <>
-                        <div className="font-medium text-gray-800">{b.tester.name}</div>
-                        <div className="text-gray-500 truncate">{b.tester.email}</div>
-                      </>
+                      <div className="font-medium text-gray-800">{b.tester.name}</div>
                     ) : (
                       <Dash />
                     )}
