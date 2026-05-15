@@ -19,7 +19,7 @@ import {
   setVersionCurrent,
   notifyVersion,
 } from '../../lib/appVersions'
-import { listDownloads } from '../../lib/appDownloads'
+import { listDownloads, getDownloadCountsByVersion } from '../../lib/appDownloads'
 import type { AppDownload, AppVersion } from '../../types'
 import { ACTIVE_PLATFORMS } from '../../types'
 import LoadingSpinner from '../../components/LoadingSpinner'
@@ -35,6 +35,7 @@ export default function AdminPatchNotes() {
   const { user, project } = useAuth()
   const [versions, setVersions] = useState<AppVersion[] | null>(null)
   const [downloadsByVersion, setDownloadsByVersion] = useState<Record<string, AppDownload[]>>({})
+  const [testerDownloadCounts, setTesterDownloadCounts] = useState<Record<string, number>>({})
   const [error, setError] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState<AppVersion | null>(null)
@@ -49,11 +50,14 @@ export default function AdminPatchNotes() {
     try {
       const rows = await listVersions(project.id)
       setVersions(rows)
-      // Fetch downloads per version in parallel for the count column.
-      const downloadEntries = await Promise.all(
-        rows.map(async (v) => [v.id, await listDownloads(v.id)] as const),
-      )
+      // Fetch per-version uploaded files + per-version tester-download counts
+      // in parallel. Counts come from version_downloads (one row per tester+platform).
+      const [downloadEntries, counts] = await Promise.all([
+        Promise.all(rows.map(async (v) => [v.id, await listDownloads(v.id)] as const)),
+        getDownloadCountsByVersion(project.id),
+      ])
       setDownloadsByVersion(Object.fromEntries(downloadEntries))
+      setTesterDownloadCounts(counts)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load versions')
     }
@@ -251,6 +255,10 @@ export default function AdminPatchNotes() {
                       <Download className="w-3.5 h-3.5" />
                       {(downloadsByVersion[v.id]?.length ?? 0)}/{activePlatformCount}
                     </button>
+                    <div className="mt-0.5 text-[11px] text-gray-500">
+                      {testerDownloadCounts[v.id] ?? 0} tester
+                      {(testerDownloadCounts[v.id] ?? 0) === 1 ? '' : 's'} downloaded
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">
                     {format(new Date(v.created_at), 'MMM d, yyyy')}

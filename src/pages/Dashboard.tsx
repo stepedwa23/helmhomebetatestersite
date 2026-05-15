@@ -21,7 +21,7 @@ import {
   CycleStatusBadge,
 } from '../components/StatusBadge'
 import { getCurrentVersion } from '../lib/appVersions'
-import { listDownloads, getDownloadUrl } from '../lib/appDownloads'
+import { listDownloads, getDownloadUrl, recordDownload } from '../lib/appDownloads'
 import { listTesters } from '../lib/testers'
 import { listBugsWithTester } from '../lib/bugs'
 import type { BugReportWithTester } from '../lib/bugs'
@@ -582,6 +582,7 @@ function TesterDashboard({ tester, projectId, rolesLoading }: TesterDashboardPro
   const [version, setVersion] = useState<AppVersion | null | undefined>(undefined)
   const [versionError, setVersionError] = useState<string | null>(null)
   const [downloads, setDownloads] = useState<AppDownload[]>([])
+  const [downloadAck, setDownloadAck] = useState<string | null>(null)
 
   useEffect(() => {
     if (!projectId) return
@@ -696,11 +697,28 @@ function TesterDashboard({ tester, projectId, rolesLoading }: TesterDashboardPro
                   key={p}
                   platform={p}
                   download={dl ?? null}
+                  versionId={version.id}
+                  tester={tester}
+                  projectId={projectId}
                   highlighted={detectedPlatform === p}
+                  onTracked={setDownloadAck}
                 />
               )
             })}
           </div>
+          {downloadAck && (
+            <div className="mt-3 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center justify-between gap-3">
+              <span>{downloadAck}</span>
+              <button
+                type="button"
+                onClick={() => setDownloadAck(null)}
+                className="text-green-700 hover:text-green-900"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
         </section>
       )}
 
@@ -762,10 +780,23 @@ function QuickLink({
 interface DownloadButtonProps {
   platform: AppPlatform
   download: AppDownload | null
+  versionId: string
+  tester: Tester | null
+  projectId: string
   highlighted: boolean
+  /** Called with an acknowledgement string when tracking succeeds. */
+  onTracked?: (message: string) => void
 }
 
-function DownloadButton({ platform, download, highlighted }: DownloadButtonProps) {
+function DownloadButton({
+  platform,
+  download,
+  versionId,
+  tester,
+  projectId,
+  highlighted,
+  onTracked,
+}: DownloadButtonProps) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const available = !!download
@@ -775,6 +806,36 @@ function DownloadButton({ platform, download, highlighted }: DownloadButtonProps
     setErr(null)
     setBusy(true)
     try {
+      // Track the download + auto-assign to active cycle. Best-effort: a
+      // failure here doesn't block the actual download (RLS error, network blip,
+      // etc.). For testers we have a tester id; for admin without a tester row,
+      // we skip tracking entirely.
+      if (tester) {
+        try {
+          const result = await recordDownload({
+            version_id: versionId,
+            tester_id: tester.id,
+            platform,
+            project_id: projectId,
+          })
+          if (onTracked) {
+            if (result.assignedToCycle) {
+              onTracked(
+                `Recorded — you're now in the "${result.assignedToCycle.name}" test cycle.`,
+              )
+            } else if (result.activeCycle) {
+              onTracked(
+                `Recorded — already in the "${result.activeCycle.name}" cycle.`,
+              )
+            } else {
+              onTracked('Download recorded.')
+            }
+          }
+        } catch (trackErr) {
+          console.warn('[DownloadButton] tracking failed', trackErr)
+        }
+      }
+
       const url = await getDownloadUrl(download.storage_path, 300)
       window.location.href = url
     } catch (e) {

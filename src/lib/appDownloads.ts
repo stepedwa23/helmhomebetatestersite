@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { AppDownload, AppPlatform } from '../types'
+import type { AppDownload, AppPlatform, TestCycle } from '../types'
 
 const BUCKET = 'app-downloads'
 
@@ -172,6 +172,121 @@ export async function getDownloadUrl(
     .createSignedUrl(storagePath, expiresInSeconds, { download: true })
   if (error) throw error
   return data.signedUrl
+}
+
+// ---------- Download tracking ----------
+
+export interface RecordDownloadResult {
+  /** The cycle the tester was auto-assigned to (only set if assignment actually happened). */
+  assignedToCycle: TestCycle | null
+  /** The cycle the tester was already in OR newly assigned to (for the UI banner). */
+  activeCycle: TestCycle | null
+}
+
+/**
+ * Log a tester's download of a specific (version, platform) combo and
+ * auto-assign them to the currently-active cycle in the project if any.
+ *
+ * Idempotent:
+ *   - download log uses UPSERT on (version_id, tester_id, platform) → re-clicks
+ *     just bump downloaded_at.
+ *   - cycle assignment uses ON CONFLICT DO NOTHING on cycle_testers' composite PK
+ *     → no-op if already assigned.
+ *
+ * `projectId` is required so we can find the active cycle. Pass from caller.
+ */
+export async function recordDownload(args: {
+  version_id: string
+  tester_id: string
+  platform: AppPlatform
+  project_id: string
+}): Promise<RecordDownloadResult> {
+  // 1. Upsert download log.
+  const { error: dlErr } = await supabase
+    .from('version_downloads')
+    .upsert(
+      {
+        version_id: args.version_id,
+        tester_id: args.tester_id,
+        platform: args.platform,
+        downloaded_at: new Date().toISOString(),
+      },
+      { onConflict: 'version_id,tester_id,platform' },
+    )
+  if (dlErr) {
+    console.error('[recordDownload] download log upsert failed', dlErr)
+    // Non-fatal — still try the cycle assignment + return the active cycle.
+  }
+
+  // 2. Find currently-active cycle for the project.
+  const { data: cycleRows } = await supabase
+    .from('test_cycles')
+    .select('*')
+    .eq('project_id', args.project_id)
+    .eq('status', 'active')
+    .order('start_date', { ascending: false, nullsFirst: false })
+    .limit(1)
+
+  const activeCycle = (cycleRows?.[0] as TestCycle | undefined) ?? null
+  if (!activeCycle) {
+    return { assignedToCycle: null, activeCycle: null }
+  }
+
+  // 3. Check if already assigned. If yes, no-op.
+  const { data: existingAssignment } = await supabase
+    .from('cycle_testers')
+    .select('cycle_id')
+    .eq('cycle_id', activeCycle.id)
+    .eq('tester_id', args.tester_id)
+    .limit(1)
+
+  if (existingAssignment && existingAssignment.length > 0) {
+    return { assignedToCycle: null, activeCycle }
+  }
+
+  // 4. Insert the assignment. Composite PK on (cycle_id, tester_id) makes
+  //    accidental duplicates a NOOP via the natural unique constraint, but
+  //    we'd surface the error if RLS rejects.
+  const { error: assignErr } = await supabase
+    .from('cycle_testers')
+    .insert({ cycle_id: activeCycle.id, tester_id: args.tester_id })
+  if (assignErr) {
+    console.warn('[recordDownload] cycle assignment failed (non-fatal)', assignErr)
+    return { assignedToCycle: null, activeCycle }
+  }
+
+  return { assignedToCycle: activeCycle, activeCycle }
+}
+
+/**
+ * For each version in the project, count distinct testers who have downloaded
+ * any platform. Used by the admin Patch Notes table to show "N testers".
+ */
+export async function getDownloadCountsByVersion(
+  projectId: string,
+): Promise<Record<string, number>> {
+  // Join through app_versions to project_id (we don't have it on version_downloads
+  // directly — saves a denormalization).
+  const { data, error } = await supabase
+    .from('version_downloads')
+    .select('version_id, tester_id, version:app_versions!inner(project_id)')
+    .eq('version.project_id', projectId)
+  if (error) {
+    console.error('[getDownloadCountsByVersion] failed', error)
+    return {}
+  }
+
+  // Count distinct tester_ids per version.
+  const seen: Record<string, Set<string>> = {}
+  for (const row of (data ?? []) as Array<{ version_id: string; tester_id: string }>) {
+    if (!seen[row.version_id]) seen[row.version_id] = new Set()
+    seen[row.version_id].add(row.tester_id)
+  }
+  const counts: Record<string, number> = {}
+  for (const [vid, set] of Object.entries(seen)) {
+    counts[vid] = set.size
+  }
+  return counts
 }
 
 // ---------- helpers ----------
