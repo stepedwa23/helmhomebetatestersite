@@ -3,6 +3,7 @@ import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
+import { Markdown } from 'tiptap-markdown'
 import {
   Bold,
   Italic,
@@ -64,6 +65,24 @@ export default function TipTapEditor({
         inline: false,
         allowBase64: false,
         HTMLAttributes: { class: 'rounded-lg my-2 max-w-full h-auto' },
+      }),
+      // Markdown paste support. Many sources (Cowork chat, Claude.ai, ChatGPT,
+      // Notion outline copies, etc.) put the markdown SOURCE on the clipboard
+      // rather than rendered HTML. Without this extension, `# Heading` and
+      // `**bold**` come in as literal text. With `transformPastedText: true`
+      // they're converted to TipTap nodes on paste.
+      //
+      // We do NOT enable transformCopiedText — that would change copy behavior
+      // so users get markdown when copying out of the editor, which can confuse
+      // anyone pasting into another rich editor. Authoring stores TipTap JSON
+      // as before; nothing about the data model changes.
+      Markdown.configure({
+        html: false,
+        transformPastedText: true,
+        transformCopiedText: false,
+        breaks: false,
+        linkify: true,
+        tightLists: true,
       }),
     ],
     content: initial ?? undefined,
