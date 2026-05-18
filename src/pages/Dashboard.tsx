@@ -665,9 +665,9 @@ function TesterDashboard({ tester, projectId, rolesLoading }: TesterDashboardPro
         </p>
       </header>
 
-      {/* Patch notes (left, 2/3) + Roadmap (right, 1/3). Stacks on mobile. */}
-      <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-        <div className="lg:col-span-2">
+      {/* Patch notes + Roadmap: equal-width columns on lg+, stack on mobile. */}
+      <div className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <div>
           {version === undefined ? (
             <div className="bg-white border border-gray-200 rounded-xl p-6 flex items-center justify-center">
               <LoadingSpinner size="sm" />
@@ -706,7 +706,7 @@ function TesterDashboard({ tester, projectId, rolesLoading }: TesterDashboardPro
           )}
         </div>
 
-        <div className="lg:col-span-1">
+        <div>
           <RoadmapPanel items={roadmap} />
         </div>
       </div>
@@ -833,9 +833,9 @@ function RoadmapPanel({ items }: { items: RoadmapItem[] | undefined }) {
                   <RoadmapStatusBadge status={item.status} />
                 </div>
                 {item.description && (
-                  <p className="mt-1 text-xs text-gray-600 leading-relaxed">
-                    {item.description}
-                  </p>
+                  <div className="mt-1 text-xs text-gray-700 leading-relaxed prose prose-sm prose-slate max-w-none">
+                    <TipTapView content={item.description} emptyText="" />
+                  </div>
                 )}
               </li>
             ))}

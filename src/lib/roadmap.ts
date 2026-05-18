@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { RoadmapItem, RoadmapStatus } from '../types'
+import type { RoadmapItem, RoadmapStatus, TipTapDoc } from '../types'
 
 // ---------- Reads ----------
 
@@ -24,7 +24,7 @@ export async function listRoadmapItems(projectId: string): Promise<RoadmapItem[]
 export interface CreateRoadmapItemInput {
   project_id: string
   title: string
-  description?: string | null
+  description?: TipTapDoc
   status?: RoadmapStatus
   sort_order?: number
 }
@@ -38,7 +38,7 @@ export async function createRoadmapItem(
     .insert({
       project_id: input.project_id,
       title: input.title.trim(),
-      description: input.description?.trim() || null,
+      description: input.description ?? null,
       status: input.status ?? 'planned',
       sort_order: input.sort_order ?? 1000,
       created_by: createdBy,
@@ -52,7 +52,7 @@ export async function createRoadmapItem(
 
 export interface UpdateRoadmapItemInput {
   title?: string
-  description?: string | null
+  description?: TipTapDoc
   status?: RoadmapStatus
   sort_order?: number
 }
@@ -64,7 +64,7 @@ export async function updateRoadmapItem(
   const normalized: Partial<RoadmapItem> = {}
   if (typeof patch.title === 'string') normalized.title = patch.title.trim()
   if (patch.description !== undefined) {
-    normalized.description = patch.description?.trim() || null
+    normalized.description = patch.description
   }
   if (patch.status) normalized.status = patch.status
   if (typeof patch.sort_order === 'number') normalized.sort_order = patch.sort_order

@@ -14,13 +14,15 @@ import LoadingSpinner from '../../components/LoadingSpinner'
 import Modal from '../../components/Modal'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { RoadmapStatusBadge } from '../../components/StatusBadge'
+import TipTapEditor from '../../components/editor/TipTapEditor'
+import TipTapView from '../../components/editor/TipTapView'
 import {
   listRoadmapItems,
   createRoadmapItem,
   updateRoadmapItem,
   deleteRoadmapItem,
 } from '../../lib/roadmap'
-import type { RoadmapItem, RoadmapStatus } from '../../types'
+import type { RoadmapItem, RoadmapStatus, TipTapDoc } from '../../types'
 import { ROADMAP_STATUS_OPTIONS, ROADMAP_STATUS_LABEL } from '../../types'
 
 export default function AdminRoadmap() {
@@ -183,9 +185,9 @@ export default function AdminRoadmap() {
                   <td className="px-4 py-3 max-w-md">
                     <p className="text-gray-900 font-medium truncate">{item.title}</p>
                     {item.description && (
-                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                        {item.description}
-                      </p>
+                      <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                        <TipTapView content={item.description} emptyText="" />
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -259,7 +261,7 @@ export default function AdminRoadmap() {
             submitLabel="Save changes"
             initial={{
               title: editing.title,
-              description: editing.description ?? '',
+              description: editing.description,
               status: editing.status,
             }}
             onSubmit={async (values) => {
@@ -337,13 +339,13 @@ function MenuItem({
 
 interface RoadmapFormValues {
   title: string
-  description: string
+  description: TipTapDoc
   status: RoadmapStatus
 }
 
 const EMPTY_FORM: RoadmapFormValues = {
   title: '',
-  description: '',
+  description: null,
   status: 'planned',
 }
 
@@ -398,19 +400,13 @@ function RoadmapForm({ initial, submitLabel, onSubmit, onCancel }: RoadmapFormPr
       </div>
 
       <div>
-        <label
-          htmlFor="rm-desc"
-          className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5"
-        >
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
           Description <span className="font-normal lowercase text-gray-400">(optional)</span>
         </label>
-        <textarea
-          id="rm-desc"
-          value={values.description}
-          onChange={(e) => set('description', e.target.value)}
-          rows={3}
-          placeholder="A sentence or two for testers — what it is, why you're doing it."
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+        <TipTapEditor
+          initial={values.description}
+          onChange={(doc) => set('description', doc)}
+          placeholder="A sentence or two for testers — or paste a longer update. Headings, bullets, and bold from pasted content come through."
         />
       </div>
 

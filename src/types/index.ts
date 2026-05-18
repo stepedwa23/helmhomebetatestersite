@@ -285,7 +285,11 @@ export interface RoadmapItem {
   id: string
   project_id: string
   title: string
-  description: string | null
+  /**
+   * TipTap JSON document. Stored as jsonb. Null = no description. Pre-006
+   * rows are migrated to a single-paragraph TipTap doc preserving the text.
+   */
+  description: TipTapDoc
   status: RoadmapStatus
   sort_order: number
   created_at: string
