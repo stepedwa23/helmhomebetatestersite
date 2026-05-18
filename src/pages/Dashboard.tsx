@@ -788,43 +788,60 @@ function TesterDashboard({ tester, projectId, rolesLoading }: TesterDashboardPro
 }
 
 // ---------- Roadmap side panel (tester dashboard) ----------
+//
+// Mirrors the format of the "Current beta" patch notes card next to it:
+// gradient header up top with an uppercase eyebrow + bold heading, white
+// content body below. Uses a slate gradient instead of blue so the two
+// cards pair visually without competing for "primary" attention.
 
 function RoadmapPanel({ items }: { items: RoadmapItem[] | undefined }) {
+  const activeCount =
+    items?.filter((i) => i.status === 'planned' || i.status === 'in_progress').length ?? 0
+
   return (
-    <section className="bg-white border border-gray-200 rounded-xl h-full">
-      <header className="px-5 py-3 border-b border-gray-100">
-        <h3 className="text-sm font-semibold text-gray-900">What's coming next</h3>
-        <p className="mt-0.5 text-xs text-gray-500">
-          Items being worked on or planned for upcoming versions.
-        </p>
-      </header>
-      {items === undefined ? (
-        <div className="px-5 py-8 flex items-center justify-center">
-          <LoadingSpinner size="sm" />
+    <section className="bg-gradient-to-br from-slate-700 to-slate-800 text-white rounded-xl overflow-hidden">
+      <div className="px-6 py-5">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+          Coming next
         </div>
-      ) : items.length === 0 ? (
-        <div className="px-5 py-8 text-center text-xs text-gray-500">
-          Nothing on the roadmap yet — check back as the beta evolves.
+        <div className="mt-1 flex items-baseline gap-3 flex-wrap">
+          <h2 className="text-2xl font-semibold">Roadmap</h2>
+          {items && items.length > 0 && (
+            <span className="text-sm text-slate-300">
+              {activeCount} active
+            </span>
+          )}
         </div>
-      ) : (
-        <ul className="divide-y divide-gray-100">
-          {items.map((item) => (
-            <li key={item.id} className="px-5 py-3">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-sm font-medium text-gray-900 leading-snug">
-                  {item.title}
-                </span>
-                <RoadmapStatusBadge status={item.status} />
-              </div>
-              {item.description && (
-                <p className="mt-1 text-xs text-gray-600 leading-relaxed">
-                  {item.description}
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      </div>
+      <div className="bg-white px-5 py-5">
+        {items === undefined ? (
+          <div className="py-4 flex items-center justify-center">
+            <LoadingSpinner size="sm" />
+          </div>
+        ) : items.length === 0 ? (
+          <p className="text-center text-xs text-gray-500 py-4">
+            Nothing on the roadmap yet — check back as the beta evolves.
+          </p>
+        ) : (
+          <ul className="divide-y divide-gray-100 -my-3">
+            {items.map((item) => (
+              <li key={item.id} className="py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-medium text-gray-900 leading-snug">
+                    {item.title}
+                  </span>
+                  <RoadmapStatusBadge status={item.status} />
+                </div>
+                {item.description && (
+                  <p className="mt-1 text-xs text-gray-600 leading-relaxed">
+                    {item.description}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   )
 }
