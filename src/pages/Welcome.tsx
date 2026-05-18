@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 /**
@@ -16,6 +17,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
  */
 export default function Welcome() {
   const navigate = useNavigate()
+  const { refresh: refreshAuth } = useAuth()
   const [loading, setLoading] = useState(true)
   const [authedEmail, setAuthedEmail] = useState<string | null>(null)
   const [password, setPassword] = useState('')
@@ -81,6 +83,13 @@ export default function Welcome() {
         // Don't block — they can still sign in and an admin can link manually.
         console.warn('link-tester-account failed', linkErr)
       }
+
+      // CRITICAL: re-run AuthContext's role/project load AFTER link-tester-account
+      // has set testers.user_id. The earlier load(s) saw user_id=null and got
+      // back an empty projects list under RLS, so AuthContext is currently
+      // caching project=null. Without this refresh, Dashboard would land on
+      // `!projectId` and spin forever until the user hard-refreshes the page.
+      await refreshAuth()
 
       navigate('/dashboard', { replace: true })
     } catch (err) {

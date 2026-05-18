@@ -10,6 +10,7 @@ import {
   MessageSquareText,
   FileText,
   Megaphone,
+  Map,
   LogOut,
   Eye,
   EyeOff,
@@ -49,6 +50,7 @@ const ADMIN_NAV: NavItem[] = [
   { to: '/admin/feedback', label: 'Feedback', icon: MessageSquareText },
   { to: '/admin/suggestions', label: 'Suggestions', icon: Lightbulb },
   { to: '/admin/patch-notes', label: 'Patch Notes', icon: FileText },
+  { to: '/admin/roadmap', label: 'Roadmap', icon: Map },
   { to: '/admin/help', label: 'Help Library', icon: BookOpen },
   // Settings is intentionally not in the nav — the page is still routed at
   // /admin/settings as a placeholder. Add `{ to: '/admin/settings', ... }`

@@ -28,6 +28,8 @@ import type { BugReportWithTester } from '../lib/bugs'
 import { listSuggestionsAdminWithTester } from '../lib/suggestions'
 import type { SuggestionWithTester } from '../lib/suggestions'
 import { listCycles } from '../lib/cycles'
+import { listRoadmapItems } from '../lib/roadmap'
+import { RoadmapStatusBadge } from '../components/StatusBadge'
 import {
   ACTIVE_PLATFORMS,
   APP_PLATFORM_LABEL,
@@ -37,6 +39,7 @@ import {
   type Tester,
   type TestCycle,
   type BugSeverity,
+  type RoadmapItem,
 } from '../types'
 
 export default function Dashboard() {
@@ -149,12 +152,16 @@ function AdminDashboard({ projectId, rolesLoading }: AdminDashboardProps) {
   }, [bugs, suggestions])
 
   // ---------- Render ----------
-  if (rolesLoading || !projectId) {
+  if (rolesLoading) {
     return (
       <div className="p-6 md:p-8 flex items-center justify-center">
         <LoadingSpinner />
       </div>
     )
+  }
+
+  if (!projectId) {
+    return <NoProjectFallback />
   }
 
   const loading = !counts || !recentActivity
@@ -583,6 +590,9 @@ function TesterDashboard({ tester, projectId, rolesLoading }: TesterDashboardPro
   const [versionError, setVersionError] = useState<string | null>(null)
   const [downloads, setDownloads] = useState<AppDownload[]>([])
   const [downloadAck, setDownloadAck] = useState<string | null>(null)
+  // undefined = still loading, [] = loaded but empty, [...] = loaded with items.
+  // Failure is logged + treated as empty so the UI doesn't hang.
+  const [roadmap, setRoadmap] = useState<RoadmapItem[] | undefined>(undefined)
 
   useEffect(() => {
     if (!projectId) return
@@ -608,6 +618,19 @@ function TesterDashboard({ tester, projectId, rolesLoading }: TesterDashboardPro
           setVersion(null)
         }
       })
+
+    // Roadmap loads independently of version — fire in parallel so the patch
+    // notes don't gate the roadmap. Empty array on failure (not undefined) so
+    // we render the "nothing on the roadmap" empty state instead of a spinner.
+    listRoadmapItems(projectId)
+      .then((rows) => {
+        if (!cancelled) setRoadmap(rows)
+      })
+      .catch((err) => {
+        console.warn('[Dashboard] Failed to load roadmap', err)
+        if (!cancelled) setRoadmap([])
+      })
+
     return () => {
       cancelled = true
     }
@@ -615,7 +638,7 @@ function TesterDashboard({ tester, projectId, rolesLoading }: TesterDashboardPro
 
   const detectedPlatform = useDetectedPlatform(tester?.os ?? null)
 
-  if (rolesLoading || !projectId) {
+  if (rolesLoading) {
     return (
       <div className="p-6 md:p-8 flex items-center justify-center">
         <LoadingSpinner />
@@ -623,10 +646,14 @@ function TesterDashboard({ tester, projectId, rolesLoading }: TesterDashboardPro
     )
   }
 
+  if (!projectId) {
+    return <NoProjectFallback />
+  }
+
   const firstName = tester?.name.split(' ')[0]
 
   return (
-    <div className="p-6 md:p-8 max-w-3xl mx-auto">
+    <div className="p-6 md:p-8 max-w-6xl mx-auto">
       <PreviewModeBanner />
 
       <header className="mb-6">
@@ -638,43 +665,51 @@ function TesterDashboard({ tester, projectId, rolesLoading }: TesterDashboardPro
         </p>
       </header>
 
-      {/* Current version banner */}
-      {version === undefined ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-6 flex items-center justify-center mb-4">
-          <LoadingSpinner size="sm" />
+      {/* Patch notes (left, 2/3) + Roadmap (right, 1/3). Stacks on mobile. */}
+      <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+        <div className="lg:col-span-2">
+          {version === undefined ? (
+            <div className="bg-white border border-gray-200 rounded-xl p-6 flex items-center justify-center">
+              <LoadingSpinner size="sm" />
+            </div>
+          ) : version ? (
+            <section className="bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-xl overflow-hidden">
+              <div className="px-6 py-5">
+                <div className="text-xs font-semibold uppercase tracking-wide text-blue-100">
+                  Current beta
+                </div>
+                <div className="mt-1 flex items-baseline gap-3 flex-wrap">
+                  <h2 className="text-2xl font-semibold">Version {version.version}</h2>
+                  {version.release_date && (
+                    <span className="inline-flex items-center gap-1 text-sm text-blue-100">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {format(new Date(version.release_date), 'MMM d, yyyy')}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="bg-white px-6 py-5">
+                <TipTapView
+                  content={version.patch_notes}
+                  emptyText="No patch notes for this version yet."
+                />
+              </div>
+            </section>
+          ) : (
+            <section className="bg-white border border-gray-200 rounded-xl p-6 text-center">
+              <p className="text-sm text-gray-600">
+                {versionError
+                  ? `Couldn't load the current version (${versionError}).`
+                  : 'No current beta version has been published yet.'}
+              </p>
+            </section>
+          )}
         </div>
-      ) : version ? (
-        <section className="mb-6 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-xl overflow-hidden">
-          <div className="px-6 py-5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-blue-100">
-              Current beta
-            </div>
-            <div className="mt-1 flex items-baseline gap-3 flex-wrap">
-              <h2 className="text-2xl font-semibold">Version {version.version}</h2>
-              {version.release_date && (
-                <span className="inline-flex items-center gap-1 text-sm text-blue-100">
-                  <Calendar className="w-3.5 h-3.5" />
-                  {format(new Date(version.release_date), 'MMM d, yyyy')}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="bg-white px-6 py-5">
-            <TipTapView
-              content={version.patch_notes}
-              emptyText="No patch notes for this version yet."
-            />
-          </div>
-        </section>
-      ) : (
-        <section className="mb-6 bg-white border border-gray-200 rounded-xl p-6 text-center">
-          <p className="text-sm text-gray-600">
-            {versionError
-              ? `Couldn't load the current version (${versionError}).`
-              : 'No current beta version has been published yet.'}
-          </p>
-        </section>
-      )}
+
+        <div className="lg:col-span-1">
+          <RoadmapPanel items={roadmap} />
+        </div>
+      </div>
 
       {/* Downloads */}
       {version && downloads.length > 0 && (
@@ -749,6 +784,48 @@ function TesterDashboard({ tester, projectId, rolesLoading }: TesterDashboardPro
         </div>
       </section>
     </div>
+  )
+}
+
+// ---------- Roadmap side panel (tester dashboard) ----------
+
+function RoadmapPanel({ items }: { items: RoadmapItem[] | undefined }) {
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl h-full">
+      <header className="px-5 py-3 border-b border-gray-100">
+        <h3 className="text-sm font-semibold text-gray-900">What's coming next</h3>
+        <p className="mt-0.5 text-xs text-gray-500">
+          Items being worked on or planned for upcoming versions.
+        </p>
+      </header>
+      {items === undefined ? (
+        <div className="px-5 py-8 flex items-center justify-center">
+          <LoadingSpinner size="sm" />
+        </div>
+      ) : items.length === 0 ? (
+        <div className="px-5 py-8 text-center text-xs text-gray-500">
+          Nothing on the roadmap yet — check back as the beta evolves.
+        </div>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {items.map((item) => (
+            <li key={item.id} className="px-5 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-sm font-medium text-gray-900 leading-snug">
+                  {item.title}
+                </span>
+                <RoadmapStatusBadge status={item.status} />
+              </div>
+              {item.description && (
+                <p className="mt-1 text-xs text-gray-600 leading-relaxed">
+                  {item.description}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 
@@ -898,4 +975,36 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+}
+
+// =====================================================================
+// Shared fallback — shown when AuthContext finished loading but the user
+// can't see any project under RLS. The common cause is a not-yet-linked
+// tester row (testers.user_id NULL). Refreshing typically fixes it once
+// link-tester-account has run. We give the user a button rather than
+// silently spinning.
+// =====================================================================
+
+function NoProjectFallback() {
+  return (
+    <div className="p-6 md:p-8 max-w-md mx-auto">
+      <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
+        <h2 className="text-base font-semibold text-gray-900">
+          Finishing setup…
+        </h2>
+        <p className="mt-2 text-sm text-gray-600">
+          We're still linking your account to the project. This usually clears
+          in a couple of seconds. If it doesn't, refresh the page or sign out
+          and back in.
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm font-medium"
+        >
+          Refresh
+        </button>
+      </div>
+    </div>
+  )
 }

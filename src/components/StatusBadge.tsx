@@ -41,7 +41,9 @@ import type {
   BugStatus,
   SuggestionStatus,
   CycleStatus,
+  RoadmapStatus,
 } from '../types'
+import { ROADMAP_STATUS_LABEL } from '../types'
 
 const TESTER_STATUS_TONE: Record<TesterStatus, BadgeTone> = {
   invited: 'amber',
@@ -126,4 +128,14 @@ const CYCLE_STATUS_LABEL: Record<CycleStatus, string> = {
 
 export function CycleStatusBadge({ status }: { status: CycleStatus }) {
   return <Badge tone={CYCLE_STATUS_TONE[status]}>{CYCLE_STATUS_LABEL[status]}</Badge>
+}
+
+const ROADMAP_STATUS_TONE: Record<RoadmapStatus, BadgeTone> = {
+  planned: 'gray',
+  in_progress: 'amber',
+  shipped: 'green',
+}
+
+export function RoadmapStatusBadge({ status }: { status: RoadmapStatus }) {
+  return <Badge tone={ROADMAP_STATUS_TONE[status]}>{ROADMAP_STATUS_LABEL[status]}</Badge>
 }

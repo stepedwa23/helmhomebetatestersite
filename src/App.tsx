@@ -28,6 +28,7 @@ import AdminHelpLibrary from './pages/admin/HelpLibraryAdmin'
 import AdminHelpArticleEdit from './pages/admin/HelpArticleEdit'
 import AdminSuggestions from './pages/admin/SuggestionsTriage'
 import AdminNotices from './pages/admin/Notices'
+import AdminRoadmap from './pages/admin/Roadmap'
 import AdminSettings from './pages/admin/Settings'
 
 export default function App() {
@@ -81,6 +82,7 @@ export default function App() {
         <Route path="/admin/bugs" element={<AdminBugTriage />} />
         <Route path="/admin/feedback" element={<AdminFeedback />} />
         <Route path="/admin/patch-notes" element={<AdminPatchNotes />} />
+        <Route path="/admin/roadmap" element={<AdminRoadmap />} />
         <Route path="/admin/help" element={<AdminHelpLibrary />} />
         <Route path="/admin/suggestions" element={<AdminSuggestions />} />
         <Route path="/admin/notices" element={<AdminNotices />} />

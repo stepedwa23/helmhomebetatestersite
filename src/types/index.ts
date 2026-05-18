@@ -74,6 +74,15 @@ export const NOTICE_SEVERITY_LABEL: Record<NoticeSeverity, string> = {
   critical: 'Critical',
 }
 
+export const ROADMAP_STATUS_OPTIONS = ['planned', 'in_progress', 'shipped'] as const
+export type RoadmapStatus = (typeof ROADMAP_STATUS_OPTIONS)[number]
+
+export const ROADMAP_STATUS_LABEL: Record<RoadmapStatus, string> = {
+  planned: 'Planned',
+  in_progress: 'In progress',
+  shipped: 'Shipped',
+}
+
 export const APP_PLATFORM_OPTIONS = [
   'macos_arm64',
   'macos_x64',
@@ -267,6 +276,18 @@ export interface Notice {
   body: string
   severity: NoticeSeverity
   is_active: boolean
+  created_at: string
+  updated_at: string
+  created_by: string
+}
+
+export interface RoadmapItem {
+  id: string
+  project_id: string
+  title: string
+  description: string | null
+  status: RoadmapStatus
+  sort_order: number
   created_at: string
   updated_at: string
   created_by: string
