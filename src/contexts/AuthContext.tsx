@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -51,6 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [rolesLoading, setRolesLoading] = useState(false)
   const [previewAsTester, setPreviewAsTester] = useState(false)
+  // Tracks whether we've completed the first project/tester load. Used to gate
+  // the rolesLoading spinner so we only show it on initial load and after a
+  // sign-out — not on background refetches that would unmount in-progress
+  // forms (e.g. a bug report draft when the tab regains focus).
+  const initialRoleLoadDone = useRef(false)
 
   // When the user is not actually an admin, force preview off so the flag
   // doesn't linger in a weird state if they sign in/out across role changes.
@@ -71,8 +77,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // We surface query errors via console.error instead of swallowing them,
   // because a silent RLS rejection (or stale-JWT 401) is otherwise impossible
   // to diagnose.
+  //
+  // We only flip `rolesLoading=true` when we don't yet have a project — i.e.
+  // first load or after a sign-out. Subsequent refetches (USER_UPDATED, manual
+  // refresh()) run silently. Without this, any rolesLoading bounce unmounts
+  // every page that gates on rolesLoading, destroying in-progress form state
+  // (bug report drafts especially).
   async function loadUserContext(currentSession: Session | null) {
     if (!currentSession?.user) {
+      // Sign-out / no user: reset everything and re-arm the initial-load
+      // gate so the next sign-in shows the loading spinner again.
+      initialRoleLoadDone.current = false
       setProject(null)
       setTester(null)
       setIsAdmin(false)
@@ -80,7 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    setRolesLoading(true)
+    const showLoading = !initialRoleLoadDone.current
+    if (showLoading) setRolesLoading(true)
     try {
       // 1. Active project — admin owns it, testers see only theirs via RLS.
       // Avoid .maybeSingle()/.single() — use limit(1) + array index (reference-project lesson).
@@ -132,7 +148,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setTester((testerRows?.[0] as Tester | undefined) ?? null)
     } finally {
-      setRolesLoading(false)
+      initialRoleLoadDone.current = true
+      if (showLoading) setRolesLoading(false)
     }
   }
 
@@ -170,9 +187,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })()
 
     const { data: subscription } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
+      (event, newSession) => {
         if (!mounted) return
         setSession(newSession)
+        // Skip role refetch on TOKEN_REFRESHED — Supabase fires this when the
+        // access token rotates (notably when the tab regains focus near token
+        // expiry). The user identity is unchanged, so project/tester relations
+        // can't have changed. Refetching here was unmounting in-progress forms
+        // (bug report draft data loss when testers tabbed away to Helm and
+        // back).
+        if (event === 'TOKEN_REFRESHED') return
         // Fire and forget — never block the UI on this.
         loadUserContext(newSession).catch((err) =>
           console.error('[AuthContext] role load failed', err),
