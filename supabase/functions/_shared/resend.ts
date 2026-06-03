@@ -8,6 +8,13 @@ export interface SendEmailInput {
   subject: string
   html: string
   from?: string
+  /**
+   * Optional Reply-To header. When set, an email client's "Reply" action
+   * composes to this address instead of `from`. Used by the tester messages
+   * channel so admin can hit Reply and respond directly to the tester even
+   * though the From: is our system sender.
+   */
+  replyTo?: string | string[]
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<void> {
@@ -19,18 +26,21 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
 
   const from = input.from ?? Deno.env.get('RESEND_FROM') ?? 'noreply@example.com'
 
+  const payload: Record<string, unknown> = {
+    from,
+    to: input.to,
+    subject: input.subject,
+    html: input.html,
+  }
+  if (input.replyTo) payload.reply_to = input.replyTo
+
   const res = await fetch(RESEND_API_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      from,
-      to: input.to,
-      subject: input.subject,
-      html: input.html,
-    }),
+    body: JSON.stringify(payload),
   })
 
   if (!res.ok) {

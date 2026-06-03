@@ -11,6 +11,7 @@ import {
   FileText,
   Megaphone,
   Map,
+  Mail,
   LogOut,
   Eye,
   EyeOff,
@@ -35,12 +36,14 @@ const TESTER_NAV: NavItem[] = [
   { to: '/bugs', label: 'Bug Reports', icon: ClipboardList },
   { to: '/suggestions', label: 'Suggestions', icon: Lightbulb },
   { to: '/feedback', label: 'Feedback', icon: MessageSquareText },
+  { to: '/contact', label: 'Contact', icon: Mail },
   { to: '/help', label: 'Help Library', icon: BookOpen },
 ]
 
 const ADMIN_NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/notices', label: 'Notices', icon: Megaphone },
+  { to: '/admin/messages', label: 'Messages', icon: Mail },
   { to: '/admin/testers', label: 'Testers', icon: Users },
   { to: '/admin/cycles', label: 'Test Cycles', icon: CalendarRange },
   { to: '/admin/bugs', label: 'Bug Triage', icon: Bug },

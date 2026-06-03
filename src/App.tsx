@@ -16,6 +16,7 @@ import HelpLibrary from './pages/tester/HelpLibrary'
 import HelpArticleView from './pages/tester/HelpArticleView'
 import Suggestions from './pages/tester/Suggestions'
 import Feedback from './pages/tester/Feedback'
+import Contact from './pages/tester/Contact'
 
 // Admin pages
 import AdminTesters from './pages/admin/Testers'
@@ -29,6 +30,7 @@ import AdminHelpArticleEdit from './pages/admin/HelpArticleEdit'
 import AdminSuggestions from './pages/admin/SuggestionsTriage'
 import AdminNotices from './pages/admin/Notices'
 import AdminRoadmap from './pages/admin/Roadmap'
+import AdminMessages from './pages/admin/Messages'
 import AdminSettings from './pages/admin/Settings'
 
 export default function App() {
@@ -75,6 +77,7 @@ export default function App() {
         <Route path="/help/:slug" element={<HelpArticleView />} />
         <Route path="/suggestions" element={<Suggestions />} />
         <Route path="/feedback" element={<Feedback />} />
+        <Route path="/contact" element={<Contact />} />
 
         {/* Admin pages */}
         <Route path="/admin/testers" element={<AdminTesters />} />
@@ -83,6 +86,7 @@ export default function App() {
         <Route path="/admin/feedback" element={<AdminFeedback />} />
         <Route path="/admin/patch-notes" element={<AdminPatchNotes />} />
         <Route path="/admin/roadmap" element={<AdminRoadmap />} />
+        <Route path="/admin/messages" element={<AdminMessages />} />
         <Route path="/admin/help" element={<AdminHelpLibrary />} />
         <Route path="/admin/suggestions" element={<AdminSuggestions />} />
         <Route path="/admin/notices" element={<AdminNotices />} />

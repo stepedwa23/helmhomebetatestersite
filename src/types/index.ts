@@ -83,6 +83,15 @@ export const ROADMAP_STATUS_LABEL: Record<RoadmapStatus, string> = {
   shipped: 'Shipped',
 }
 
+export const TESTER_MESSAGE_STATUS_OPTIONS = ['new', 'replied', 'archived'] as const
+export type TesterMessageStatus = (typeof TESTER_MESSAGE_STATUS_OPTIONS)[number]
+
+export const TESTER_MESSAGE_STATUS_LABEL: Record<TesterMessageStatus, string> = {
+  new: 'New',
+  replied: 'Replied',
+  archived: 'Archived',
+}
+
 export const APP_PLATFORM_OPTIONS = [
   'macos_arm64',
   'macos_x64',
@@ -295,6 +304,18 @@ export interface RoadmapItem {
   created_at: string
   updated_at: string
   created_by: string
+}
+
+export interface TesterMessage {
+  id: string
+  project_id: string
+  tester_id: string
+  subject: string
+  body: string
+  status: TesterMessageStatus
+  created_at: string
+  updated_at: string
+  replied_at: string | null
 }
 
 // Admin view — includes admin_notes.
